@@ -6,8 +6,8 @@ CoordinateX = TypeVar("CoordinateX", bound=str)
 CoordinateY = TypeVar("CoordinateY", bound=str)
 
 
-@dataclass
-class Field(frozen=True):
+@dataclass(frozen=True)
+class Field:
     x: CoordinateX
     y: CoordinateY
 
