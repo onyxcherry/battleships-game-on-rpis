@@ -3,6 +3,7 @@ import queue
 from enum import Enum
 from typing import List, Tuple, Dict
 from domain.field import AttackResult
+from domain.actions import Actions
 
 
 class Display:
@@ -29,10 +30,18 @@ class Display:
 
         self._shooting = False
 
+        self._shots_marker_pos = (0, 0)
+        self._ships_marker_pos = (-1, -1)
+
         self._color_map = {
-            AttackResult.Shot : pg.Color('red4'),
-            AttackResult.ShotDown : pg.Color('saddlebrown'),
-            AttackResult.Missed : pg.Color('blueviolet'),
+            Actions.HitShips : pg.Color('red4'),
+            Actions.HitShots : pg.Color('red4'),
+
+            Actions.DestroyedShips : pg.Color('saddlebrown'),
+            Actions.DestroyedShots : pg.Color('saddlebrown'),
+            
+            Actions.MissShips : pg.Color('blueviolet'),
+            Actions.MissShots : pg.Color('blueviolet'),
 
             Display.ExtraColors.WATER : pg.Color('aqua'),
             Display.ExtraColors.WAVING_MAST : pg.Color('gray20'),
@@ -45,16 +54,6 @@ class Display:
             Display.ExtraColors.MARKER_AXIS : pg.Color('springgreen')
         }
     
-    def _player_turn(self):
-        self._shooting = True
-        self._shots_pg_board.activate()
-        self._ships_pg_board.deactivate()
-    
-    def _opponent_turn(self):
-        self._shooting = False
-        self._shots_pg_board.deactivate()
-        self._ships_pg_board.activate()
-    
     def _handle_pg_event(self, event : pg.event.Event) -> None:
         if event.type == pg.MOUSEMOTION:
             pos=event.pos
@@ -62,11 +61,10 @@ class Display:
                 tile : Tuple[int,int] = self._shots_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
-                if tile == self._shots_pg_board.get_target_pos():
+                if tile == self._shots_marker_pos:
                     return
-                self._shots_pg_board.set_target_pos(*tile)
                 try:
-                    self._out_queue.put_nowait(f"hover {tile}")
+                    self._in_queue.put_nowait(f"{Actions.HoverShots};{tile}")
                 except queue.Full:
                     print("out queue full!")
         
@@ -77,16 +75,71 @@ class Display:
                 if tile == (-1, -1):
                     return
                 try:
-                    self._out_queue.put_nowait(f"select {tile}")
+                    self._in_queue.put_nowait(f"{Actions.SelectShots};{tile}")
                 except queue.Full:
                     print("out queue full!")
+        
+        elif event.type == pg.KEYDOWN:
+            new_marker_pos = False
+
+            if event.key == pg.K_w:
+                new_marker_pos = (self._shots_marker_pos[0], self._shots_marker_pos[1] - 1)
+
+            elif event.key == pg.K_s:
+                new_marker_pos = (self._shots_marker_pos[0], self._shots_marker_pos[1] + 1)
+
+            elif event.key == pg.K_a:
+                new_marker_pos = (self._shots_marker_pos[0] - 1, self._shots_marker_pos[1])
+                
+            elif event.key == pg.K_d:
+                new_marker_pos = (self._shots_marker_pos[0] + 1, self._shots_marker_pos[1])
+
+            if new_marker_pos:
+                new_marker_pos = (max(0, min(9, new_marker_pos[0])), max(0, min(9, new_marker_pos[1])))
+                if new_marker_pos != self._shots_marker_pos:
+                    try:
+                        self._in_queue.put_nowait(f"{Actions.HoverShots};{(new_marker_pos)}")
+                    except queue.Full:
+                        print("out queue full!")
 
     def _handle_external_event(self, event : str) -> None:
-        pass
+        splitted = event.split(';')
+
+        action = Actions[splitted[0]]
+
+        if action == Actions.PlayerTurn:
+            self._shooting = True
+            return
+        
+        if action == Actions.OpponentTurn:
+            self._shooting = False
+            return
+
+        if action == Actions.HoverShots:
+            pos : Tuple[int, int] = eval(splitted[1])
+            self._shots_marker_pos = pos
+            return
+
+        if action == Actions.HoverShips:
+            pos : Tuple[int, int] = eval(splitted[1])
+            self._ships_marker_pos = pos
+            return
+
+        if not action in self._color_map:
+            return
+        
+        pos : Tuple[int, int] = eval(splitted[1])
+        color = self._color_map[action]
+
+        if self._shooting:
+            self._shots_pg_board.change_cell(pos, color)
+        else:
+            self._ships_pg_board.change_cell(pos, color)
+
 
     def _draw(self) -> None:
-        self._shots_pg_board.draw()
-        self._ships_pg_board.draw()
+        self._shots_pg_board.draw(self._shots_marker_pos if self._shooting else (-1, -1))
+        self._ships_pg_board.draw(self._ships_marker_pos if not self._shooting else (-1, -1))
     
     def _game_loop(self) -> None:
         while self.running:
@@ -98,7 +151,7 @@ class Display:
 
             while True:
                 try:
-                    event = self._in_queue.get_nowait()
+                    event = self._out_queue.get_nowait()
                     self._handle_external_event(event)
                 except queue.Empty:
                     break
@@ -120,8 +173,6 @@ class Display:
 
         self.running = True
 
-        self._player_turn() # TEMP
-
         self._game_loop()
 
         pg.quit()
@@ -140,9 +191,6 @@ class PgBoard:
         self._tilesize = (size - 2 * self._tileborder) / 10
         self._color_map = color_map
 
-        self._active = False
-        self._target_pos = (-1,-1)
-
         self._tiles : List[List[PgBoard.PgTile]] = []
         for y in range(10):
             row : List[PgBoard.PgTile] = []
@@ -156,32 +204,20 @@ class PgBoard:
                 row.append(PgBoard.PgTile(rect, self._color_map[Display.ExtraColors.WATER]))
             self._tiles.append(row)
     
-    def draw(self) -> None:
+    def draw(self, marker : Tuple[int, int]) -> None:
         pg.draw.rect(self._screen, self._color_map[Display.ExtraColors.BOARD_BG], self._rect)
         for y in range(10):
             for x in range(10):
                 pg_tile = self._tiles[y][x]
                 draw_color : pg.Color = pg_tile.color
-                if self._active:
-                    row_match = x == self._target_pos[0]
-                    col_match = y == self._target_pos[1]
+                if marker != (-1, -1):
+                    row_match = x == marker[0]
+                    col_match = y == marker[1]
                     if row_match and col_match:
                         draw_color = draw_color.lerp(self._color_map[Display.ExtraColors.MARKER_CENTER], 0.5)
                     elif row_match or col_match:
                         draw_color = draw_color.lerp(self._color_map[Display.ExtraColors.MARKER_AXIS], 0.5)
                 pg.draw.rect(self._screen, draw_color, pg_tile.rect)
-
-    def activate(self) -> None:
-        self._active = True
-
-    def deactivate(self) -> None:
-        self._active = False
-    
-    def set_target_pos(self, x : int, y : int) -> None:
-        self._target_pos = (x, y)
-    
-    def get_target_pos(self) -> Tuple[int, int]:
-        return self._target_pos
 
     def get_cell_from_mousecoords(self, pos : Tuple[int, int]) -> Tuple[int,int]:
         rel_pos = (pos[0] - self._rect.x, pos[1] - self._rect.y)
@@ -198,3 +234,6 @@ class PgBoard:
             return (-1, -1)
         
         return cell
+
+    def change_cell(self, pos : Tuple[int, int], color : pg.Color) -> None:
+        self._tiles[pos[1]][pos[0]].color = color

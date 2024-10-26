@@ -4,6 +4,7 @@ from domain.field import Field, AttackResult
 from domain.boards import ShipsBoard, ShotsBoard
 from domain.ships import MastedShips
 from domain.client.pg_display import Display
+from domain.actions import Actions
 from queue import Queue
 from threading import Thread
 from abc import abstractmethod, ABCMeta
@@ -59,16 +60,24 @@ class Game:
         attack_result = self._connection.attack(field)
         self._attacks_board.add_attack(field, attack_result)
     
-    def test_out(self, out_queue : Queue) -> None:
+    def test_in_out(self) -> None:
+        self._out_queue.put(Actions.PlayerTurn)
         while True:
-            print(out_queue.get())
+            event = self._in_queue.get()
+            action = Actions[event.split(';')[0]]
+            if action == Actions.HoverShots:
+                print(event)
+                self._out_queue.put(event)
+            elif action == Actions.SelectShots:
+                pos = eval(event.split(';')[1])
+                self._out_queue.put(f"{Actions.MissShots};{pos}")
 
 
     def start(self) -> None:
-        test_out_t = Thread(target=self.test_out, args=(self._out_queue,))
-        test_out_t.daemon = True
+        test_in_out_t = Thread(target=self.test_in_out)
+        test_in_out_t.daemon = True
 
         self._display_thread.start()
-        test_out_t.start()
+        test_in_out_t.start()
 
         self._display_thread.join()
