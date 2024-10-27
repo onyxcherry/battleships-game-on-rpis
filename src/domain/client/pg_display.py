@@ -3,7 +3,7 @@ import queue
 from enum import Enum
 from typing import List, Tuple, Dict
 from domain.field import AttackResult
-from domain.actions import Actions
+from domain.actions import InActions, OutActions
 
 
 class Display:
@@ -34,14 +34,14 @@ class Display:
         self._ships_marker_pos = (-1, -1)
 
         self._color_map = {
-            Actions.HitShips : pg.Color('red4'),
-            Actions.HitShots : pg.Color('red4'),
+            OutActions.HitShips : pg.Color('red4'),
+            OutActions.HitShots : pg.Color('red4'),
 
-            Actions.DestroyedShips : pg.Color('saddlebrown'),
-            Actions.DestroyedShots : pg.Color('saddlebrown'),
+            OutActions.DestroyedShips : pg.Color('saddlebrown'),
+            OutActions.DestroyedShots : pg.Color('saddlebrown'),
             
-            Actions.MissShips : pg.Color('blueviolet'),
-            Actions.MissShots : pg.Color('blueviolet'),
+            OutActions.MissShips : pg.Color('blueviolet'),
+            OutActions.MissShots : pg.Color('blueviolet'),
 
             Display.ExtraColors.WATER : pg.Color('aqua'),
             Display.ExtraColors.WAVING_MAST : pg.Color('gray20'),
@@ -54,7 +54,13 @@ class Display:
             Display.ExtraColors.MARKER_AXIS : pg.Color('springgreen')
         }
     
-    def _handle_pg_event(self, event : pg.event.Event) -> None:
+    def _try_put_in_queue(self, action : InActions, tile : Tuple[int, int]) -> None:
+        try:
+            self._in_queue.put_nowait(f"{action.value};{tile}")
+        except queue.Full:
+            print("out queue full!")
+    
+    def _handle_pg_input_event(self, event : pg.event.Event) -> None:
         if event.type == pg.MOUSEMOTION:
             pos=event.pos
             if self._shooting:
@@ -63,10 +69,7 @@ class Display:
                     return
                 if tile == self._shots_marker_pos:
                     return
-                try:
-                    self._in_queue.put_nowait(f"{Actions.HoverShots};{tile}")
-                except queue.Full:
-                    print("out queue full!")
+                self._try_put_in_queue(InActions.HoverShots, tile)
         
         elif event.type == pg.MOUSEBUTTONDOWN:
             pos=event.pos
@@ -74,12 +77,13 @@ class Display:
                 tile : Tuple[int,int] = self._shots_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
-                try:
-                    self._in_queue.put_nowait(f"{Actions.SelectShots};{tile}")
-                except queue.Full:
-                    print("out queue full!")
+                self._try_put_in_queue(InActions.SelectShots, tile)
         
         elif event.type == pg.KEYDOWN:
+            
+            if event.key == pg.K_SPACE:
+                self._try_put_in_queue(InActions.SelectShots, self._shots_marker_pos)
+
             new_marker_pos = False
 
             if event.key == pg.K_w:
@@ -97,30 +101,27 @@ class Display:
             if new_marker_pos:
                 new_marker_pos = (max(0, min(9, new_marker_pos[0])), max(0, min(9, new_marker_pos[1])))
                 if new_marker_pos != self._shots_marker_pos:
-                    try:
-                        self._in_queue.put_nowait(f"{Actions.HoverShots};{(new_marker_pos)}")
-                    except queue.Full:
-                        print("out queue full!")
+                    self._try_put_in_queue(InActions.HoverShots, new_marker_pos)
 
-    def _handle_external_event(self, event : str) -> None:
+    def _handle_output_event(self, event : str) -> None:
         splitted = event.split(';')
 
-        action = Actions[splitted[0]]
+        action = OutActions[splitted[0]]
 
-        if action == Actions.PlayerTurn:
+        if action == OutActions.PlayerTurn:
             self._shooting = True
             return
         
-        if action == Actions.OpponentTurn:
+        if action == OutActions.OpponentTurn:
             self._shooting = False
             return
 
-        if action == Actions.HoverShots:
+        if action == OutActions.HoverShots:
             pos : Tuple[int, int] = eval(splitted[1])
             self._shots_marker_pos = pos
             return
 
-        if action == Actions.HoverShips:
+        if action == OutActions.HoverShips:
             pos : Tuple[int, int] = eval(splitted[1])
             self._ships_marker_pos = pos
             return
@@ -147,12 +148,12 @@ class Display:
                 if event.type == pg.QUIT:
                     self.running = False
                     break
-                self._handle_pg_event(event)
+                self._handle_pg_input_event(event)
 
             while True:
                 try:
                     event = self._out_queue.get_nowait()
-                    self._handle_external_event(event)
+                    self._handle_output_event(event)
                 except queue.Empty:
                     break
 
@@ -184,7 +185,7 @@ class PgBoard:
             self.rect = rect
             self.color = color
 
-    def __init__(self, screen : pg.surface.Surface, pos : pg.math.Vector2, size : pg.math.Vector2, color_map : Dict[AttackResult | Display.ExtraColors, pg.Color], tile_border : pg.math.Vector2 = pg.math.Vector2(2)):
+    def __init__(self, screen : pg.surface.Surface, pos : pg.math.Vector2, size : pg.math.Vector2, color_map : Dict[OutActions | Display.ExtraColors, pg.Color], tile_border : pg.math.Vector2 = pg.math.Vector2(2)):
         self._screen = screen
         self._tileborder = tile_border
         self._rect = pg.Rect(pos.x, pos.y, size.x, size.y)

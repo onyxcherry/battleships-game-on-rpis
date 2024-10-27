@@ -1,7 +1,10 @@
 import enum
 
-class Actions(enum.StrEnum):
+class InActions(enum.StrEnum):
     SelectShots = "SelectShots"
+    HoverShots = "HoverShots"
+
+class OutActions(enum.StrEnum):
     HoverShots = "HoverShots"
     HoverShips = "HoverShips"
 
