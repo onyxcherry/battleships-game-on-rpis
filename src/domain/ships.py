@@ -1,6 +1,8 @@
 import enum
-from domain.field import Field, AttackResult
-from typing import Annotated, Final
+from domain.attacks import AttackResultStatus
+from domain.field import Field
+from typing import Annotated, Final, Self
+import copy
 
 
 class ShipStatus(enum.StrEnum):
@@ -11,8 +13,10 @@ class ShipStatus(enum.StrEnum):
 
 class Ship:
     def __init__(self, fields: list[Field]) -> None:
+        if not self.can_be_built_from_fields(fields):
+            raise RuntimeError("Invalid fields for the ship")
         self._fields: Final = fields
-        self._parts_floating = fields
+        self._parts_floating = copy.deepcopy(fields)
         self._parts_wrecked: list[Field] = []
 
     @property
@@ -22,6 +26,14 @@ class Ship:
     @property
     def fields(self) -> list[Field]:
         return self._fields
+
+    @property
+    def wrecked_masts(self) -> list[Field]:
+        return self._parts_wrecked
+
+    @property
+    def waving_masts(self) -> list[Field]:
+        return self._parts_floating
 
     @property
     def waving_masts_count(self) -> int:
@@ -35,18 +47,69 @@ class Ship:
             return ShipStatus.ShotButFloats
         return ShipStatus.FullyOperational
 
-    def attack(self, field: Field) -> AttackResult:
+    @property
+    def fields_with_coastal_zone(self) -> set[Field]:
+        all_fields: set[Field] = set()
+        all_fields.add(self._fields)
+        all_fields.add(self._infer_coastal_zone())
+        return all_fields
+
+    def _infer_coastal_zone(self) -> set[Field]:
+        adjacency_vectors = [
+            (-1, -1),
+            (-1, 0),
+            (-1, 1),
+            (0, -1),
+            (0, 1),
+            (1, -1),
+            (1, 0),
+            (1, 1),
+        ]
+        coastal_zone: set[Field] = []
+        for field in self._fields:
+            for adjacent_field in [
+                field.moved_by(*vector) for vector in adjacency_vectors
+            ]:
+                if adjacent_field not in self._fields:
+                    coastal_zone.add(adjacent_field)
+        return coastal_zone
+
+    def attack(self, field: Field) -> AttackResultStatus:
         if field not in self._parts_floating:
-            return AttackResult.Missed
+            if field not in self._parts_wrecked:
+                return AttackResultStatus.Missed
+            return AttackResultStatus.AlreadyShot
 
         self._parts_floating.remove(field)
         self._parts_wrecked.append(field)
         if self.status == ShipStatus.ShotButFloats:
-            return AttackResult.Shot
+            return AttackResultStatus.Shot
         elif self.status == ShipStatus.Wrecked:
-            return AttackResult.ShotDown
+            return AttackResultStatus.ShotDown
         else:
             raise RuntimeError(f"Bad ship state: {self.status}")
+
+    @staticmethod
+    def can_be_built_from_fields(fields: list[Field]) -> bool:
+        if 1 <= len(fields) <= 4:
+            return True
+        return False
+
+    @classmethod
+    def from_parts(cls, *, wrecked: list[Field], waving: list[Field]) -> Self:
+        all_fields = [*wrecked, *waving]
+        ship = cls(all_fields)
+        ship._parts_wrecked = wrecked
+        ship._parts_floating = waving
+        return ship
+
+    def __str__(self) -> str:
+        waving_masts_codes = [field.name for field in self.waving_masts]
+        wrecked_masts_codes = [field.name for field in self.wrecked_masts]
+        return f"Ship<{len(self.fields)}>(🏳️ {",".join(waving_masts_codes) or "empty"}|💀 {",".join(wrecked_masts_codes) or "empty"})"
+
+    def __repr__(self) -> str:
+        return f"Ship({self.fields!r})"
 
 
 class MastedShips:
