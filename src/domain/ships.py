@@ -49,13 +49,10 @@ class Ship:
 
     @property
     def fields_with_coastal_zone(self) -> set[Field]:
-        all_fields: set[Field] = set()
-        all_fields.add(self._fields)
-        all_fields.add(self._infer_coastal_zone())
-        return all_fields
+        return self._fields.union(self._infer_coastal_zone())
 
     @property
-    def _properties(self) -> tuple[set, set, set]:
+    def _properties(self) -> tuple[frozenset, frozenset, frozenset]:
         return (
             frozenset(self.fields),
             frozenset(self.waving_masts),
@@ -81,7 +78,7 @@ class Ship:
             (1, 0),
             (1, 1),
         ]
-        coastal_zone: set[Field] = []
+        coastal_zone: set[Field] = set()
         for field in self._fields:
             for adjacent_field in [
                 field.moved_by(*vector) for vector in adjacency_vectors
@@ -97,7 +94,7 @@ class Ship:
             return AttackResultStatus.AlreadyShot
 
         self._parts_floating.remove(field)
-        self._parts_wrecked.append(field)
+        self._parts_wrecked.add(field)
         if self.status == ShipStatus.ShotButFloats:
             return AttackResultStatus.Shot
         elif self.status == ShipStatus.Wrecked:
@@ -113,8 +110,7 @@ class Ship:
 
     @classmethod
     def from_parts(cls, *, wrecked: set[Field], waving: set[Field]) -> Self:
-        all_fields = [*wrecked, *waving]
-        ship = cls(all_fields)
+        ship = cls(wrecked.union(waving))
         ship._parts_wrecked = wrecked
         ship._parts_floating = waving
         return ship

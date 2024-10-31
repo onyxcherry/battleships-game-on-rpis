@@ -41,7 +41,7 @@ class Field:
     def name(self) -> str:
         return f"{self._y}{self._x}"
 
-    def moved_by(self, y: int, x: int) -> Self:
+    def moved_by(self, y: int, x: int) -> "Field":
         new_y = chr(ord(self._y) + y)
         if new_y not in ascii_uppercase:
             return RuntimeError(f"Invalid y part: {y}")

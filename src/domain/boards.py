@@ -1,5 +1,4 @@
-import copy
-from domain.attacks import AttackResultStatus, AttackStatus
+from domain.attacks import AttackResultStatus, AttackResultStatus, UnknownStatus
 from domain.field import Field
 from domain.ships import Ship, MastedShips, ShipStatus
 
@@ -11,6 +10,7 @@ class LaunchedShipCollidesError(ValueError):
 class ShipsBoard:
     def __init__(self) -> None:
         self._ships: dict[Field, Ship] = {}
+        self._ships_and_coastal_zones: set[Field] = set()
 
     @property
     def ships_floating_count(self) -> int:
@@ -27,18 +27,21 @@ class ShipsBoard:
         )
 
     def add_ship(self, ship: Ship) -> None:
+        colliding_fields = []
+        for field in list(ship.fields):
+            if field in self._ships_and_coastal_zones:
+                colliding_fields.append(field)
+        if len(colliding_fields) > 0:
+            raise LaunchedShipCollidesError(
+                f"{ship!s} collides with already launched ships due to {', '.join(str(field) for field in colliding_fields)}"
+            )
+        self._ships_and_coastal_zones |= ship.fields_with_coastal_zone
         for field in ship.fields:
             self._ships[field] = ship
 
     def add_ships(self, ships: MastedShips) -> None:
-        ships_and_coastal_zones: set[Field] = set()
         for ship in [*ships.single, *ships.two, *ships.three, *ships.four]:
-            if any(ship.fields in ships_and_coastal_zones):
-                raise LaunchedShipCollidesError(
-                    f"{ship!s} collides with already launched ships"
-                )
             self.add_ship(self, ship)
-            ships_and_coastal_zones.add(ship.fields_with_coastal_zone)
 
     def process_attack(self, field: Field) -> AttackResultStatus:
         if field not in self._ships:
@@ -80,7 +83,7 @@ class ShipsBoard:
 
 class ShotsBoard:
     def __init__(self) -> None:
-        self._attacks: dict[Field, AttackStatus] = []
+        self._attacks: dict[Field, AttackResultStatus | UnknownStatus] = {}
 
     def add_attack(self, field: Field, result: AttackResultStatus) -> None:
         self._attacks[field] = result
@@ -90,7 +93,7 @@ class ShotsBoard:
         pass
 
 
-def print_ascii(ships: list[Ship], size: int = 10) -> None:
+def print_ascii(ships: list[Ship], size: int = 10) -> str:
     half_space = "\N{EN SPACE}"
     space = "\N{EM SPACE}"
     full_square = "\N{BLACK SQUARE}"
@@ -112,7 +115,7 @@ def print_ascii(ships: list[Ship], size: int = 10) -> None:
             matrix[y][x] = edged
 
     top_bottom_line = "".join([space * 2, "—" * (2 * size + 1)])
-    head_numbers = space * 3 + space.join(str(n) for n in range(1, 11))
+    head_numbers = "\n" + space * 3 + space.join(str(n) for n in range(1, 11))
     output = [head_numbers, top_bottom_line]
     starting_y_label = ord("A")
     for idx, row in enumerate(matrix):

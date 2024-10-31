@@ -19,12 +19,7 @@ class AttackResultStatus(str, enum.Enum):
     Missed = "Missed"
 
 
-class AttackStatus(str, enum.Enum):
-    ShotDown = "ShotDown"
-    Shot = "Shot"
-    AlreadyShot = "AlreadyShot"
-    Missed = "Missed"
-    Unknown = "Unknown"
+UnknownStatus = Literal["Unknown"]
 
 
 def bv(v: Any) -> Field:
