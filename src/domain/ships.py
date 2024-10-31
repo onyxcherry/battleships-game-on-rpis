@@ -12,27 +12,27 @@ class ShipStatus(enum.StrEnum):
 
 
 class Ship:
-    def __init__(self, fields: list[Field]) -> None:
+    def __init__(self, fields: set[Field]) -> None:
         if not self.can_be_built_from_fields(fields):
             raise RuntimeError("Invalid fields for the ship")
         self._fields: Final = fields
         self._parts_floating = copy.deepcopy(fields)
-        self._parts_wrecked: list[Field] = []
+        self._parts_wrecked: set[Field] = set()
 
     @property
     def original_masts_count(self) -> int:
         return len(self._fields)
 
     @property
-    def fields(self) -> list[Field]:
+    def fields(self) -> set[Field]:
         return self._fields
 
     @property
-    def wrecked_masts(self) -> list[Field]:
+    def wrecked_masts(self) -> set[Field]:
         return self._parts_wrecked
 
     @property
-    def waving_masts(self) -> list[Field]:
+    def waving_masts(self) -> set[Field]:
         return self._parts_floating
 
     @property
@@ -53,6 +53,22 @@ class Ship:
         all_fields.add(self._fields)
         all_fields.add(self._infer_coastal_zone())
         return all_fields
+
+    @property
+    def _properties(self) -> tuple[set, set, set]:
+        return (
+            frozenset(self.fields),
+            frozenset(self.waving_masts),
+            frozenset(self.wrecked_masts),
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Ship):
+            return False
+        return self._properties == other._properties
+
+    def __hash__(self) -> int:
+        return hash(self._properties)
 
     def _infer_coastal_zone(self) -> set[Field]:
         adjacency_vectors = [
@@ -90,13 +106,13 @@ class Ship:
             raise RuntimeError(f"Bad ship state: {self.status}")
 
     @staticmethod
-    def can_be_built_from_fields(fields: list[Field]) -> bool:
+    def can_be_built_from_fields(fields: set[Field]) -> bool:
         if 1 <= len(fields) <= 4:
             return True
         return False
 
     @classmethod
-    def from_parts(cls, *, wrecked: list[Field], waving: list[Field]) -> Self:
+    def from_parts(cls, *, wrecked: set[Field], waving: set[Field]) -> Self:
         all_fields = [*wrecked, *waving]
         ship = cls(all_fields)
         ship._parts_wrecked = wrecked
@@ -113,7 +129,7 @@ class Ship:
 
 
 class MastedShips:
-    single: Annotated[list[Ship], 4]
-    two: Annotated[list[Ship], 3]
-    three: Annotated[list[Ship], 2]
-    four: Annotated[list[Ship], 1]
+    single: Annotated[set[Ship], 4]
+    two: Annotated[set[Ship], 3]
+    three: Annotated[set[Ship], 2]
+    four: Annotated[set[Ship], 1]

@@ -48,21 +48,21 @@ class ShipsBoard:
         return result
 
     @staticmethod
-    def build_ships_from_fields(ships_fields: list[Field]) -> MastedShips:
-        ships: list[Ship] = []
-        fields = copy.deepcopy(ships_fields)
+    def build_ships_from_fields(ships_fields: set[Field]) -> set[Ship]:
+        ships: set[Ship] = set()
+        fields = list(ships_fields)
 
         adjacency_vectors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
         while len(fields) > 0:
-            one_ship_fields: list[Field] = []
+            one_ship_fields: set[Field] = set()
             starting_field = fields[0]
-            one_ship_fields.append(starting_field)
+            one_ship_fields.add(starting_field)
             fields_to_visit = [
                 starting_field.moved_by(*vector) for vector in adjacency_vectors
             ]
             for adjacent_field in fields_to_visit:
                 if adjacent_field in fields:
-                    one_ship_fields.append(adjacent_field)
+                    one_ship_fields.add(adjacent_field)
                     field_neighbours = [
                         adjacent_field.moved_by(*vector) for vector in adjacency_vectors
                     ]
@@ -73,7 +73,7 @@ class ShipsBoard:
                     ]
                     fields_to_visit += filtered
             ship = Ship(one_ship_fields)
-            ships.append(ship)
+            ships.add(ship)
             fields = list(set(fields).difference(one_ship_fields))
         return ships
 
