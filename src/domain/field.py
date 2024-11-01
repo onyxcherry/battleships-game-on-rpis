@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Any
 from string import ascii_uppercase
 
 

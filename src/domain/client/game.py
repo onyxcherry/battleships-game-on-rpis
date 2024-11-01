@@ -1,5 +1,5 @@
 from typing import Optional
-from application.messaging import Message
+from application.messaging import GameMessage
 from domain.attacks import AttackRequest, AttackResult
 from domain.field import Field
 from domain.boards import ShipsBoard, ShotsBoard
@@ -35,7 +35,7 @@ class Game:
     def start(self) -> None:
         pass
 
-    def handle_message(self, message: Message) -> Optional[Message]:
+    def handle_message(self, message: GameMessage) -> Optional[GameMessage]:
         if isinstance(att_req := message.data, AttackRequest):
             status = self._ships_board.process_attack(att_req.field)
             result = AttackResult(field=att_req.field, status=status)

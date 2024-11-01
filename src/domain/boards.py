@@ -1,4 +1,4 @@
-from domain.attacks import AttackResultStatus, AttackResultStatus, UnknownStatus
+from domain.attacks import AttackResultStatus, UnknownStatus
 from domain.field import Field
 from domain.ships import Ship, MastedShips, ShipStatus
 
