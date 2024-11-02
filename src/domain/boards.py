@@ -41,7 +41,7 @@ class ShipsBoard:
 
     def add_ships(self, ships: MastedShips) -> None:
         for ship in [*ships.single, *ships.two, *ships.three, *ships.four]:
-            self.add_ship(self, ship)
+            self.add_ship(ship)
 
     def process_attack(self, field: Field) -> AttackResultStatus:
         if field not in self._ships:
