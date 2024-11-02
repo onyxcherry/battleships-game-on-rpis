@@ -85,7 +85,9 @@ class ShotsBoard:
     def __init__(self) -> None:
         self._attacks: dict[Field, AttackResultStatus | UnknownStatus] = {}
 
-    def add_attack(self, field: Field, result: AttackResultStatus) -> None:
+    def add_attack(
+        self, field: Field, result: AttackResultStatus | UnknownStatus
+    ) -> None:
         self._attacks[field] = result
         self.notify_added()
 

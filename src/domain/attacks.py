@@ -19,7 +19,7 @@ class AttackResultStatus(str, enum.Enum):
     Missed = "Missed"
 
 
-UnknownStatus = Literal["Unknown"]
+type UnknownStatus = Literal["Unknown"]
 
 
 def bv(v: Any) -> Field:
