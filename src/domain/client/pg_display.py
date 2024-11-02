@@ -2,7 +2,6 @@ import pygame as pg
 import queue
 from enum import Enum
 from typing import List, Tuple, Dict
-from domain.field import AttackResult
 from domain.actions import InActions, OutActions
 
 
