@@ -1,8 +1,15 @@
 import enum
 from domain.attacks import AttackResultStatus
 from domain.field import Field
-from typing import Annotated, Final, Self
+from typing import Final, Self
+from pydantic.dataclasses import dataclass
+
+from pydantic import ConfigDict
+
+
 import copy
+
+dataclass_config = ConfigDict(populate_by_name=True)
 
 
 class ShipStatus(enum.StrEnum):
@@ -125,7 +132,15 @@ class Ship:
 
 
 class MastedShips:
-    single: Annotated[set[Ship], 4]
-    two: Annotated[set[Ship], 3]
-    three: Annotated[set[Ship], 2]
-    four: Annotated[set[Ship], 1]
+    single: set[Ship]
+    two: set[Ship]
+    three: set[Ship]
+    four: set[Ship]
+
+
+@dataclass(frozen=True, config=dataclass_config)
+class MastedShipsCounts:
+    single: int
+    two: int
+    three: int
+    four: int

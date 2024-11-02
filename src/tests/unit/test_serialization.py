@@ -1,7 +1,14 @@
 from uuid import UUID
-from application.messaging import ClientInfo, GameMessage
+from application.messaging import (
+    ClientInfo,
+    ExtraInfo,
+    GameInfo,
+    GameMessage,
+    GameStatus,
+)
 from domain.attacks import AttackRequest, AttackResult, AttackResultStatus
 from domain.field import Field
+from domain.ships import MastedShipsCounts
 
 
 def tests_serializing_game_message():
@@ -27,10 +34,52 @@ def tests_serializing_game_message():
 
 def tests_serializing_client_info():
     client_info = ClientInfo(
-        uniqid=UUID("9fb087c2-29a0-4f1d-aa76-db1fb90ce1f2"), opponent_connected=True
+        uniqid=UUID("9fb087c2-29a0-4f1d-aa76-db1fb90ce1f2"),
+        connected=True,
+        ships_placed=True,
+        ready=False,
+        all_ships_wrecked=False,
     )
     assert client_info.serialize() == {
         "uniqid": "9fb087c2-29a0-4f1d-aa76-db1fb90ce1f2",
-        "opponent_connected": True,
+        "connected": True,
+        "ships_placed": True,
+        "ready": False,
+        "all_ships_wrecked": False,
         "what": "ClientInfo",
+    }
+
+
+def test_serializing_game_info():
+    client_info = ClientInfo(
+        uniqid=UUID("c1224278-b2c4-4289-ad1e-f74e344ee19d"),
+        connected=True,
+        ships_placed=True,
+        ready=True,
+        all_ships_wrecked=False,
+    )
+    masted_ships_counts = MastedShipsCounts(single=4, two=3, three=2, four=1)
+    game_info = GameInfo(
+        uniqid=UUID("1e70ec62-aced-4771-97f9-0b945567cf7f"),
+        status=GameStatus.Ended,
+        opponent=client_info,
+        masted_ships=masted_ships_counts,
+        board_size=10,
+        extra=ExtraInfo(you_start_first=True, you_won=False, error="Some error"),
+    )
+    assert game_info.serialize() == {
+        "uniqid": "1e70ec62-aced-4771-97f9-0b945567cf7f",
+        "status": "Ended",
+        "opponent": {
+            "uniqid": "c1224278-b2c4-4289-ad1e-f74e344ee19d",
+            "connected": True,
+            "ships_placed": True,
+            "ready": True,
+            "all_ships_wrecked": False,
+            "what": "ClientInfo",
+        },
+        "masted_ships": {"single": 4, "two": 3, "three": 2, "four": 1},
+        "board_size": 10,
+        "extra": {"you_start_first": True, "you_won": False, "error": "Some error"},
+        "what": "GameInfo",
     }
