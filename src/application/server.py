@@ -28,9 +28,10 @@ board_size = 10
 async def listen(websocket: ServerConnection):
     if connected_clients[0] is None:
         connected_clients[0] = websocket
-        logger.debug(f"New client connected: {websocket.remote_address}")
-        client_data = await websocket.recv()
-        client_decoded_data = decode_json_message(client_data)
+        logger.debug(f"First client connected: {websocket.remote_address}")
+        first_client_data = await websocket.recv()
+        logger.debug(f"{first_client_data=}")
+        client_decoded_data = decode_json_message(first_client_data)
         client_info = parse_client_info(client_decoded_data)
         client_infos[0] = client_info
         game_info = GameInfo(
@@ -40,12 +41,15 @@ async def listen(websocket: ServerConnection):
             masted_ships=masted_ships_counts,
             board_size=board_size,
         )
-        await websocket.send(game_info.stringify())
+        game_info_for_first_client = game_info.stringify()
+        await websocket.send(game_info_for_first_client)
+        logger.debug(f"{game_info_for_first_client=}")
     elif connected_clients[1] is None:
         connected_clients[1] = websocket
-        logger.debug(f"New client connected: {websocket.remote_address}")
-        client_data = await websocket.recv()
-        client_decoded_data = decode_json_message(client_data)
+        logger.debug(f"Second client connected: {websocket.remote_address}")
+        second_client_data = await websocket.recv()
+        logger.debug(f"{second_client_data=}")
+        client_decoded_data = decode_json_message(second_client_data)
         client_info = parse_client_info(client_decoded_data)
         client_infos[1] = client_info
         opponent_info = client_infos[0]
@@ -54,15 +58,17 @@ async def listen(websocket: ServerConnection):
         game_status = (
             GameStatus.Started if can_game_start else GameStatus.WaitingToStart
         )
-        game_info = GameInfo(
+        game_info_for_second_client = GameInfo(
             uniqid=uuid4(),
             status=game_status,
             opponent=opponent_info,
             masted_ships=masted_ships_counts,
             board_size=board_size,
         )
-        await websocket.send(game_info.stringify())
-        game_info_for_client_1 = GameInfo(
+        game_info_for_second_client_msg = game_info_for_second_client.stringify()
+        await websocket.send(game_info_for_second_client_msg)
+        logger.debug(f"{game_info_for_second_client_msg=}")
+        game_info_for_first_client = GameInfo(
             uniqid=uuid4(),
             status=game_status,
             opponent=client_info,
@@ -70,11 +76,58 @@ async def listen(websocket: ServerConnection):
             board_size=board_size,
             extra=ExtraInfo(you_start_first=True),
         )
-        await websocket.send(game_info_for_client_1.stringify())
-    else:
+        game_info_for_first_client_msg = game_info_for_first_client.stringify()
+        await connected_clients[0].send(game_info_for_first_client_msg)
+        logger.debug(f"{game_info_for_first_client_msg=}")
+
+    while True:
+        client_number = 0 if websocket == connected_clients[0] else 1
         message = await websocket.recv(decode=True)
-        assert isinstance(message, str)
-        await broadcast_message(message, websocket)
+        decoded_message = decode_json_message(message)
+        if decoded_message.get("what") == "ClientInfo":
+            parsed_client_info = parse_client_info(decoded_message)
+            client_infos[client_number] = parsed_client_info
+            opponent_conn = connected_clients[int(not client_number)]
+            if opponent_conn is None:
+                continue
+            can_game_start = client_infos[0].ready and client_infos[1].ready
+            game_status = (
+                GameStatus.Started if can_game_start else GameStatus.WaitingToStart
+            )
+            extra_start_first = (
+                ExtraInfo(you_start_first=True) if client_number == 0 else None
+            )
+            updated_game_info_for_opponent = GameInfo(
+                uniqid=uuid4(),
+                status=game_status,
+                opponent=parsed_client_info,
+                masted_ships=masted_ships_counts,
+                board_size=board_size,
+                extra=extra_start_first,
+            )
+            updated_game_info_for_opponent_msg = (
+                updated_game_info_for_opponent.stringify()
+            )
+            await opponent_conn.send(updated_game_info_for_opponent_msg)
+            logger.debug(f"{updated_game_info_for_opponent_msg=}")
+            if can_game_start:
+                opponent_info = client_infos[int(not client_number)]
+                updated_game_info_for_client = GameInfo(
+                    uniqid=uuid4(),
+                    status=game_status,
+                    opponent=opponent_info,
+                    masted_ships=masted_ships_counts,
+                    board_size=board_size,
+                    extra=extra_start_first,
+                )
+                updated_game_info_for_client_msg = (
+                    updated_game_info_for_client.stringify()
+                )
+                await websocket.send(updated_game_info_for_client_msg)
+                logger.debug(f"{updated_game_info_for_client_msg=}")
+        else:
+            await broadcast_message(message, websocket)
+            logger.debug(f"{client_number}: {message}")
 
     # except websockets.ConnectionClosed as e:
     #     logger.debug(f"Client {websocket.remote_address} disconnected: {e}")
@@ -84,7 +137,8 @@ async def listen(websocket: ServerConnection):
 
 async def broadcast_message(message: str, sender_socket: ServerConnection):
     for client in connected_clients:
-        assert client is not None
+        if client is None:
+            continue
         if client != sender_socket:
             try:
                 await client.send(message)
