@@ -6,7 +6,7 @@ from domain.boards import ShipsBoard, ShotsBoard
 from domain.ships import MastedShips
 from dataclasses import dataclass
 
-from domain.client.pg_display import Display
+from domain.client.display.pg_display import Display
 from domain.actions import InActions, OutActions
 from queue import Queue
 from threading import Thread
