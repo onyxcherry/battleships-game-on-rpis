@@ -17,7 +17,6 @@ from application.messaging import (
 from config import get_logger
 from domain.ships import MastedShipsCounts
 from websockets.asyncio.server import serve, ServerConnection
-import websockets
 
 
 connected_clients: list[Optional[ServerConnection]] = [None, None]
@@ -123,6 +122,7 @@ async def listen(websocket: ServerConnection):
             parsed_client_info = parse_client_info(data)
             client_infos[client_number] = parsed_client_info
             await update_game_info()
+            # TODO: handle game end
         else:
             opponent_conn = connected_clients[int(not client_number)]
             await send(opponent_conn, data)
@@ -131,17 +131,6 @@ async def listen(websocket: ServerConnection):
     #     logger.debug(f"Client {websocket.remote_address} disconnected: {e}")
     # finally:
     #     connected_clients.remove(websocket)
-
-
-async def broadcast_message(message: str, sender_socket: ServerConnection):
-    for client in connected_clients:
-        if client is None:
-            continue
-        if client != sender_socket:
-            try:
-                await client.send(message)
-            except websockets.ConnectionClosed:
-                connected_clients.remove(client)
 
 
 async def main():

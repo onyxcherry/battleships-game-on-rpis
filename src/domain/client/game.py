@@ -24,6 +24,18 @@ class Game:
         self._ships_board.add_ships(ships)
         self._ships_placed = True
 
+    @property
+    def ships_placed(self) -> bool:
+        return self._ships_placed
+
+    @property
+    def ready(self) -> bool:
+        return self._ships_placed and True
+
+    @property
+    def all_ships_wrecked(self) -> bool:
+        return self._ships_board.ships_floating_count == 0
+
     def add_attacked_field(self, field: Field) -> None:
         self._attacks_board.add_attack(field, "Unknown")
 
