@@ -6,11 +6,11 @@ from domain.boards import ShipsBoard, ShotsBoard
 from domain.ships import MastedShips
 from dataclasses import dataclass
 
-from domain.client.display.pg_display import Display
+from domain.client.io.io import IO
 from domain.actions import InActions, OutActions
-from queue import Queue
-from threading import Thread
-
+from queue import Queue, Empty
+from threading import Thread, Event
+from time import sleep
 
 
 @dataclass(frozen=True)
@@ -27,8 +27,9 @@ class Game:
 
         self._in_queue = Queue()
         self._out_queue = Queue()
-        self._display = Display(self._in_queue, self._out_queue)
-        self._display_thread = Thread(target=self._display.run)
+        self._stop_running = Event()
+        self._stop_running.clear()
+        self._io = IO(self._in_queue, self._out_queue, self._stop_running)
 
     def place_ships(self, ships: MastedShips) -> None:
         self._ships_board.add_ships(ships)
@@ -40,16 +41,18 @@ class Game:
     
     def test_in_out(self) -> None:
         self._out_queue.put(OutActions.PlayerTurn)
-        while True:
-            event = self._in_queue.get()
-            action = InActions[event.split(';')[0]]
-            if action == InActions.HoverShots:
-                print(event)
-                self._out_queue.put(event)
-            elif action == InActions.SelectShots:
-                pos = eval(event.split(';')[1])
-                self._out_queue.put(f"{OutActions.MissShots};{pos}")
-
+        while not self._stop_running.is_set():
+            try:
+                event = self._in_queue.get(timeout=1)
+                action = InActions[event.split(';')[0]]
+                if action == InActions.HoverShots:
+                    print(event)
+                    self._out_queue.put(event)
+                elif action == InActions.SelectShots:
+                    pos = eval(event.split(';')[1])
+                    self._out_queue.put(f"{OutActions.MissShots};{pos}")
+            except Empty:
+                pass
 
     def inform_about_status(self) -> ClientStatus:
         all_ships_placed = self._ships_board.ships_floating_count == 10
@@ -57,13 +60,15 @@ class Game:
         return ClientStatus(ships_placed=all_ships_placed, ready=ready)
 
     def start(self) -> None:
-        test_in_out_t = Thread(target=self.test_in_out)
-        test_in_out_t.daemon = True
+        io_thread = Thread(target=self._io.run)
+        io_thread.start()
 
-        self._display_thread.start()
-        test_in_out_t.start()
-
-        self._display_thread.join()
+        try:
+           self.test_in_out()
+        except KeyboardInterrupt:
+            self._stop_running.set()
+        finally:
+            io_thread.join()
 
     def handle_message(self, message: Message) -> Optional[Message]:
         if isinstance(att_req := message.data, AttackRequest):
