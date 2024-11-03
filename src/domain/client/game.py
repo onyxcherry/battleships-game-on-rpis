@@ -65,7 +65,8 @@ class Game:
             raise NotImplementedError()
 
     def show_state(self) -> str:
+        space = "\N{EM SPACE}"
         my_ships = self._ships_board.represent_graphically(self._board_size)
         my_attacks = self._attacks_board.represent_graphically(self._board_size)
-        state = ["SHIPS", my_ships, my_attacks, "ATTACKS"]
+        state = [f"{space*10}SHIPS", my_ships, my_attacks, f"{space*9}ATTACKS"]
         return "\n".join(state)

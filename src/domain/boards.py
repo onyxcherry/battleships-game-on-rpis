@@ -237,7 +237,7 @@ def draw_board(matrix: list[list[str]]) -> str:
     half_space = "\N{EN SPACE}"
     space = "\N{EM SPACE}"
     top_bottom_line = "".join([space * 2, "—" * (2 * size + 1)])
-    head_numbers = "\n" + space * 3 + space.join(str(n) for n in range(1, size + 1))
+    head_numbers = space * 3 + space.join(str(n) for n in range(1, size + 1))
     output = [head_numbers, top_bottom_line]
     starting_y_label = ord("A")
     for idx, row in enumerate(matrix):

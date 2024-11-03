@@ -13,8 +13,7 @@ def tests_rendering_and_printing_ships_board_of_all_ships_states():
     ships = MastedShips(single=set(), two={ship3}, three={ship1, ship2}, four=set())
     board = ShipsBoard()
     board.add_ships(ships)
-    expected_output = """
-   1 2 3 4 5 6 7 8 9 10
+    expected_output = """   1 2 3 4 5 6 7 8 9 10
   —————————————————————
 A|  ˙ ˙☒˙☒˙☐˙ ˙ ˙ ˙ ˙  |
 B|  ˙ ˙ ˙ ˙ ˙ ˙ ˙ ˙ ˙  |
@@ -41,8 +40,7 @@ def tests_rendering_and_printing_shots_board():
     board.add_attack(Field("G9"), AttackResultStatus.ShotDown)
     board.add_attack(Field("F2"), "Unknown")
 
-    expected_output = """
-   1 2 3 4 5 6 7 8 9 10
+    expected_output = """   1 2 3 4 5 6 7 8 9 10
   —————————————————————
 A|  ˙×˙☒˙×˙ ˙ ˙ ˙ ˙ ˙  |
 B|  ˙ ˙ ˙ ˙ ˙ ˙ ˙ ˙ ˙  |
