@@ -165,7 +165,11 @@ async def play():
             else:
                 message = parse_game_message_or_info(data)
                 if isinstance(message, GameMessage):
-                    result = game.handle_message(message)
+                    try:
+                        result = game.handle_message(message)
+                    except Exception as ex:
+                        logger.exception(ex)
+                        raise ex
                     print(game.show_state())
 
                     if isinstance(result, GameMessage):
@@ -183,16 +187,15 @@ async def play():
 
 async def main():
     play_task = asyncio.create_task(play())
-    await asyncio.gather(play_task, return_exceptions=True)
-    # try:
-    #     await asyncio.gather(play_task, return_exceptions=True)
-    # except Exception as ex:
-    #     a = play_task.exception()
-    #     print(f"{a=}")
-    #     logger.exception(ex)
+    try:
+        await asyncio.gather(play_task, return_exceptions=True)
+    except Exception as ex:
+        exc = play_task.exception()
+        logger.exception(exc)
+        logger.exception(ex)
     # except KeyboardInterrupt:
     #     pass
-    #     # play_task.cancel()
+    # play_task.cancel()
 
 
 if __name__ == "__main__":
