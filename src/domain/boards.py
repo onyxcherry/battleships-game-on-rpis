@@ -1,6 +1,16 @@
+import dataclasses
 from domain.attacks import AttackResultStatus, UnknownStatus
 from domain.field import Field
 from domain.ships import Ship, MastedShips, ShipStatus
+
+
+@dataclasses.dataclass
+class ShipsFieldsByType:
+    floating: set[Field] = dataclasses.field(default_factory=set)
+    shot: set[Field] = dataclasses.field(default_factory=set)
+    shot_down: set[Field] = dataclasses.field(default_factory=set)
+    missed: set[Field] = dataclasses.field(default_factory=set)
+    unknown_status: set[Field] = dataclasses.field(default_factory=set)
 
 
 class LaunchedShipCollidesError(ValueError):
@@ -49,6 +59,25 @@ class ShipsBoard:
         ship = self._ships[field]
         result = ship.attack(field)
         return result
+
+    def represent_graphically(self, size: int) -> str:
+        floating_fields = set()
+        shot_fields = set()
+        shot_down_fields = set()
+        for ship in list(self._ships.values()):
+            if ship.status == ShipStatus.Wrecked:
+                shot_down_fields |= ship.fields
+            else:
+                floating_fields |= ship.waving_masts
+                shot_fields |= ship.wrecked_masts
+        board = create_board(
+            ShipsFieldsByType(
+                floating=floating_fields, shot=shot_fields, shot_down=shot_down_fields
+            ),
+            size,
+        )
+        drawn_board = draw_board(board)
+        return drawn_board
 
     @staticmethod
     def build_ships_from_fields(ships_fields: set[Field]) -> set[Ship]:
@@ -114,40 +143,99 @@ def get_all_ship_fields(all_fields: set[Field], starting: Field) -> set[Field]:
 class ShotsBoard:
     def __init__(self) -> None:
         self._attacks: dict[Field, AttackResultStatus | UnknownStatus] = {}
+        self._ships_shot_down: list[Ship] = []
 
     def add_attack(
         self, field: Field, result: AttackResultStatus | UnknownStatus
     ) -> None:
-        self._attacks[field] = result
+        if result != AttackResultStatus.ShotDown:
+            self._attacks[field] = result
+        else:
+            shot_down_ship_fields = get_all_ship_fields(
+                set(self._attacks.keys()), field
+            )
+            shot_down_ship = Ship.from_parts(
+                wrecked=shot_down_ship_fields, waving=set()
+            )
+            self._ships_shot_down.append(shot_down_ship)
+
         self.notify_added()
 
     def notify_added(self) -> None:
         pass
 
+    def represent_graphically(self, size: int) -> str:
+        floating_fields = set()
+        shot_fields = set()
+        shot_down_fields = set()
+        unknown_status_fields = set()
+        missed_fields = set()
 
-def print_ascii(ships: list[Ship], size: int = 10) -> str:
-    half_space = "\N{EN SPACE}"
+        for shot_down_ship in self._ships_shot_down:
+            for field in shot_down_ship.fields:
+                shot_down_fields.add(field)
+
+        for field, status in self._attacks.items():
+            match status:
+                case AttackResultStatus.ShotDown:
+                    # handled above
+                    pass
+                case AttackResultStatus.Shot | AttackResultStatus.AlreadyShot:
+                    shot_fields.add(field)
+                case AttackResultStatus.Missed:
+                    missed_fields.add(field)
+                case "Unknown":
+                    unknown_status_fields.add(field)
+        board = create_board(
+            ShipsFieldsByType(
+                floating=floating_fields,
+                shot=shot_fields,
+                shot_down=shot_down_fields,
+                missed=missed_fields,
+                unknown_status=unknown_status_fields,
+            ),
+            size,
+        )
+        drawn_board = draw_board(board)
+        return drawn_board
+
+
+def create_board(
+    ships_fields: ShipsFieldsByType,
+    size: int = 10,
+) -> list[list[str]]:
     space = "\N{EM SPACE}"
     full_square = "\N{BLACK SQUARE}"
     x_marked = "\N{BALLOT BOX WITH X}"
     edged = "\N{BALLOT BOX}"
+    unknown = "?"
+    missed = "\N{MULTIPLICATION SIGN}"
 
     matrix = [[space] * size for _ in range(size)]
-    for ship in ships:
-        if ship.status == ShipStatus.Wrecked:
-            for wrecked_field in ship.fields:
-                y, x = wrecked_field.vector_from_zeros
-                matrix[y][x] = full_square
-            continue
-        for field in ship.wrecked_masts:
-            y, x = field.vector_from_zeros
-            matrix[y][x] = x_marked
-        for field in ship.waving_masts:
-            y, x = field.vector_from_zeros
-            matrix[y][x] = edged
+    for floating_field in ships_fields.floating:
+        y, x = floating_field.vector_from_zeros
+        matrix[y][x] = edged
+    for shot_field in ships_fields.shot:
+        y, x = shot_field.vector_from_zeros
+        matrix[y][x] = x_marked
+    for shot_down_field in ships_fields.shot_down:
+        y, x = shot_down_field.vector_from_zeros
+        matrix[y][x] = full_square
+    for shot_down_field in ships_fields.missed:
+        y, x = shot_down_field.vector_from_zeros
+        matrix[y][x] = missed
+    for unknown_status_field in ships_fields.unknown_status:
+        y, x = unknown_status_field.vector_from_zeros
+        matrix[y][x] = unknown
+    return matrix
 
+
+def draw_board(matrix: list[list[str]]) -> str:
+    size = len(matrix)
+    half_space = "\N{EN SPACE}"
+    space = "\N{EM SPACE}"
     top_bottom_line = "".join([space * 2, "—" * (2 * size + 1)])
-    head_numbers = "\n" + space * 3 + space.join(str(n) for n in range(1, 11))
+    head_numbers = "\n" + space * 3 + space.join(str(n) for n in range(1, size + 1))
     output = [head_numbers, top_bottom_line]
     starting_y_label = ord("A")
     for idx, row in enumerate(matrix):

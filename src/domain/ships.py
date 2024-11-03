@@ -1,3 +1,4 @@
+import dataclasses
 import enum
 from domain.attacks import AttackResultStatus
 from domain.field import Field
@@ -136,6 +137,7 @@ class Ship:
         return f"Ship({self.fields!r})"
 
 
+@dataclasses.dataclass(frozen=True)
 class MastedShips:
     single: set[Ship]
     two: set[Ship]
