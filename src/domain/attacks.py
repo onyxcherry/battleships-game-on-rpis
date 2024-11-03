@@ -39,10 +39,8 @@ BattleshipFieldDeser = Annotated[Field, BeforeValidator(bv), PlainSerializer(ps)
 
 @dataclass(frozen=True, config=dataclass_config)
 class AttackResult:
-    # field: Field
     field: BattleshipFieldDeser
     status: AttackResultStatus
-    # type_: str = PydField(default="AttackResult", init=False, repr=False, alias="type")
     type_: Literal["AttackResult"] = PydField(
         default="AttackResult", init=False, repr=False
     )
@@ -51,7 +49,6 @@ class AttackResult:
 @dataclass(frozen=True, config=dataclass_config)
 class AttackRequest:
     field: BattleshipFieldDeser
-    # type_: str = PydField(default="AttackRequest", init=False, repr=False, alias="type")
     type_: Literal["AttackRequest"] = PydField(
         default="AttackRequest", init=False, repr=False
     )

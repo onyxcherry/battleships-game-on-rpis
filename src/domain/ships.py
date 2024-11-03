@@ -131,7 +131,9 @@ class Ship:
     def __str__(self) -> str:
         waving_masts_codes = [field.name for field in self.waving_masts]
         wrecked_masts_codes = [field.name for field in self.wrecked_masts]
-        return f"Ship<{len(self.fields)}>(🏳️ {",".join(waving_masts_codes) or "empty"}|💀 {",".join(wrecked_masts_codes) or "empty"})"
+        waving = ",".join(waving_masts_codes) or "empty"
+        wrecked = ",".join(wrecked_masts_codes) or "empty"
+        return f"Ship<{len(self.fields)}>(🏳️ {waving}|💀 {wrecked})"
 
     def __repr__(self) -> str:
         return f"Ship({self.fields!r})"

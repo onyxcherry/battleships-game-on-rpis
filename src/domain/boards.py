@@ -42,8 +42,10 @@ class ShipsBoard:
             if field in self._ships_and_coastal_zones:
                 colliding_fields.append(field)
         if len(colliding_fields) > 0:
+            colliding_fields_msg = ", ".join(str(field) for field in colliding_fields)
             raise LaunchedShipCollidesError(
-                f"{ship!s} collides with already launched ships due to {', '.join(str(field) for field in colliding_fields)}"
+                f"{ship!s} collides with already launched "
+                f"ships due to {colliding_fields_msg}"
             )
         self._ships_and_coastal_zones |= ship.fields_with_coastal_zone
         for field in ship.fields:
