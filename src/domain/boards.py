@@ -60,15 +60,24 @@ class ShipsBoard:
             one_ship_fields: set[Field] = set()
             starting_field = fields[0]
             one_ship_fields.add(starting_field)
-            fields_to_visit = [
-                starting_field.moved_by(*vector) for vector in adjacency_vectors
-            ]
+            fields_to_visit = list(
+                filter(
+                    lambda field: field is not None,
+                    [starting_field.moved_by(*vector) for vector in adjacency_vectors],
+                )
+            )
             for adjacent_field in fields_to_visit:
                 if adjacent_field in fields:
                     one_ship_fields.add(adjacent_field)
-                    field_neighbours = [
-                        adjacent_field.moved_by(*vector) for vector in adjacency_vectors
-                    ]
+                    field_neighbours = list(
+                        filter(
+                            lambda field: field is not None,
+                            [
+                                adjacent_field.moved_by(*vector)
+                                for vector in adjacency_vectors
+                            ],
+                        )
+                    )
                     filtered = [
                         new_field
                         for new_field in field_neighbours
@@ -88,9 +97,12 @@ def get_all_ship_fields(all_fields: set[Field], starting: Field) -> set[Field]:
     # queue of Fields to get their neighbours
     fields_queue: list[Field] = [starting]
     while len(fields_queue) > 0:
-        fields_to_visit = [
-            fields_queue[0].moved_by(*vector) for vector in adjacency_vectors
-        ]
+        fields_to_visit = list(
+            filter(
+                lambda field: field is not None,
+                [fields_queue[0].moved_by(*vector) for vector in adjacency_vectors],
+            )
+        )
         for adjacent_field in fields_to_visit:
             if adjacent_field in all_fields and adjacent_field not in ship_fields:
                 ship_fields.add(adjacent_field)

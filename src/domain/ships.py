@@ -87,9 +87,14 @@ class Ship:
         ]
         coastal_zone: set[Field] = set()
         for field in self._fields:
-            for adjacent_field in [
-                field.moved_by(*vector) for vector in adjacency_vectors
-            ]:
+            adjacent_fields_list = list(
+                filter(
+                    lambda field: field is not None,
+                    [field.moved_by(*vector) for vector in adjacency_vectors],
+                )
+            )
+            for adjacent_field in adjacent_fields_list:
+                assert adjacent_field is not None
                 if adjacent_field not in self._fields:
                     coastal_zone.add(adjacent_field)
         return coastal_zone
