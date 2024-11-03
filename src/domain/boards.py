@@ -21,6 +21,7 @@ class ShipsBoard:
     def __init__(self) -> None:
         self._ships: dict[Field, Ship] = {}
         self._ships_and_coastal_zones: set[Field] = set()
+        self._opponent_missed: set[Field] = set()
 
     @property
     def ships_floating_count(self) -> int:
@@ -57,6 +58,7 @@ class ShipsBoard:
 
     def process_attack(self, field: Field) -> AttackResultStatus:
         if field not in self._ships:
+            self._opponent_missed.add(field)
             return AttackResultStatus.Missed
         ship = self._ships[field]
         result = ship.attack(field)
@@ -66,6 +68,7 @@ class ShipsBoard:
         floating_fields = set()
         shot_fields = set()
         shot_down_fields = set()
+        missed = self._opponent_missed
         for ship in list(self._ships.values()):
             if ship.status == ShipStatus.Wrecked:
                 shot_down_fields |= ship.fields
@@ -74,7 +77,10 @@ class ShipsBoard:
                 shot_fields |= ship.wrecked_masts
         board = create_board(
             ShipsFieldsByType(
-                floating=floating_fields, shot=shot_fields, shot_down=shot_down_fields
+                floating=floating_fields,
+                shot=shot_fields,
+                shot_down=shot_down_fields,
+                missed=missed,
             ),
             size,
         )
