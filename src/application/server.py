@@ -5,13 +5,13 @@ import json
 import pprint
 from typing import Optional
 from uuid import uuid4
-from application.client import decode_json_message
 from application.messaging import (
     ClientInfo,
     ExtraInfo,
     GameInfo,
     GameStatus,
     Serializable,
+    decode_json_message,
     parse_client_info,
 )
 from config import get_logger

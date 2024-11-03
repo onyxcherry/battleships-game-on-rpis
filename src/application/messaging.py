@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import enum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from domain.ships import MastedShipsCounts
 from pydantic.dataclasses import dataclass
 from domain.attacks import AttackRequest, AttackResult
@@ -86,6 +86,17 @@ class GameMessage(Serializable):
 
     def stringify(self) -> str:
         return json.dumps(self.serialize())
+
+
+def decode_json_message(data: Any) -> dict:
+    try:
+        decoded_message = json.loads(data)
+    except json.JSONDecodeError as ex:
+        # TODO: inform the other side
+        raise RuntimeError("Bad message format!") from ex
+    else:
+        assert isinstance(decoded_message, dict)
+        return decoded_message
 
 
 def parse_client_info(data: dict) -> ClientInfo:
