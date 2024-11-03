@@ -81,6 +81,24 @@ class ShipsBoard:
         return ships
 
 
+def get_all_ship_fields(all_fields: set[Field], starting: Field) -> set[Field]:
+    adjacency_vectors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    ship_fields: set[Field] = {starting}
+
+    # queue of Fields to get their neighbours
+    fields_queue: list[Field] = [starting]
+    while len(fields_queue) > 0:
+        fields_to_visit = [
+            fields_queue[0].moved_by(*vector) for vector in adjacency_vectors
+        ]
+        for adjacent_field in fields_to_visit:
+            if adjacent_field in all_fields and adjacent_field not in ship_fields:
+                ship_fields.add(adjacent_field)
+                fields_queue.append(adjacent_field)
+        fields_queue.remove(fields_queue[0])
+    return ship_fields
+
+
 class ShotsBoard:
     def __init__(self) -> None:
         self._attacks: dict[Field, AttackResultStatus | UnknownStatus] = {}

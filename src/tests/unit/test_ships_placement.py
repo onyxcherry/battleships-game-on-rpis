@@ -1,4 +1,4 @@
-from domain.boards import LaunchedShipCollidesError, ShipsBoard
+from domain.boards import LaunchedShipCollidesError, ShipsBoard, get_all_ship_fields
 from domain.field import Field
 from domain.ships import Ship
 import pytest
@@ -20,6 +20,27 @@ def tests_merging_fields_into_ships():
         Ship({Field("E8")}),
     }
     assert ships == expected_ships
+
+
+def test_getting_all_ship_fields_when_one_given():
+    fields = {
+        Field("A3"),
+        Field("A4"),
+        Field("E5"),
+        Field("F5"),
+        Field("G5"),
+        Field("G6"),
+        Field("G7"),
+        Field("D9"),
+        Field("D10"),
+    }
+    assert get_all_ship_fields(fields, Field("G5")) == {
+        Field("G7"),
+        Field("F5"),
+        Field("G5"),
+        Field("G6"),
+        Field("E5"),
+    }
 
 
 def tests_adding_not_colliding_ships():
