@@ -2,6 +2,7 @@
 
 import asyncio
 import pprint
+import sys
 from uuid import uuid4
 from application.messaging import (
     ClientInfo,
@@ -55,9 +56,27 @@ async def place_ships(game: Game):
     await asyncio.sleep(0.1)
 
 
+async def read_input() -> str:
+    loop = asyncio.get_event_loop()
+    fut = loop.create_future()
+
+    def on_input():
+        fut.set_result(sys.stdin.readline().strip())
+
+    loop.add_reader(sys.stdin, on_input)
+
+    # Wait for user input
+    result = await fut
+
+    loop.remove_reader(sys.stdin)
+    return result
+
+
 async def get_next_attack() -> Field:
-    return Field("A4")
-    field = input("Enter next field to attack:")
+    print("Enter next field to attack:")
+    input_task = asyncio.create_task(read_input())
+    await input_task
+    field = input_task.result()
     return Field(field)
 
 
@@ -147,6 +166,7 @@ async def play():
                 message = parse_game_message_or_info(data)
                 if isinstance(message, GameMessage):
                     result = game.handle_message(message)
+                    print(game.show_state())
 
                     if isinstance(result, GameMessage):
                         await send(ws, result)
