@@ -3,9 +3,9 @@ import queue
 from enum import Enum
 from typing import List, Tuple, Dict
 from domain.actions import InActions, OutActions
+from threading import Event as th_Event
 
-
-class Display:
+class IO:
 
     class ExtraColors(Enum):
         MAIN_BG = 1
@@ -19,9 +19,10 @@ class Display:
         AROUND_DESTROYED = 7
 
 
-    def __init__(self, input_queue : queue.Queue, output_queue : queue.Queue):
+    def __init__(self, input_queue : queue.Queue, output_queue : queue.Queue, stop_running : th_Event):
         self._in_queue = input_queue
         self._out_queue = output_queue
+        self._stop_running = stop_running
         self._FPS = 60
 
         self._shots_pg_board : PgBoard = None
@@ -42,15 +43,15 @@ class Display:
             OutActions.MissShips : pg.Color('blueviolet'),
             OutActions.MissShots : pg.Color('blueviolet'),
 
-            Display.ExtraColors.WATER : pg.Color('aqua'),
-            Display.ExtraColors.WAVING_MAST : pg.Color('gray20'),
+            IO.ExtraColors.WATER : pg.Color('aqua'),
+            IO.ExtraColors.WAVING_MAST : pg.Color('gray20'),
 
-            Display.ExtraColors.AROUND_DESTROYED : pg.Color('royalblue'),
+            IO.ExtraColors.AROUND_DESTROYED : pg.Color('royalblue'),
 
-            Display.ExtraColors.MAIN_BG : pg.Color('aquamarine'),
-            Display.ExtraColors.BOARD_BG : pg.Color('azure4'),
-            Display.ExtraColors.MARKER_CENTER : pg.Color('springgreen4'),
-            Display.ExtraColors.MARKER_AXIS : pg.Color('springgreen')
+            IO.ExtraColors.MAIN_BG : pg.Color('aquamarine'),
+            IO.ExtraColors.BOARD_BG : pg.Color('azure4'),
+            IO.ExtraColors.MARKER_CENTER : pg.Color('springgreen4'),
+            IO.ExtraColors.MARKER_AXIS : pg.Color('springgreen')
         }
     
     def _try_put_in_queue(self, action : InActions, tile : Tuple[int, int]) -> None:
@@ -142,10 +143,10 @@ class Display:
         self._ships_pg_board.draw(self._ships_marker_pos if not self._shooting else (-1, -1))
     
     def _game_loop(self) -> None:
-        while self.running:
+        while not self._stop_running.is_set():
             for event in pg.event.get():
                 if event.type == pg.QUIT:
-                    self.running = False
+                    self._stop_running.set()
                     break
                 self._handle_pg_input_event(event)
 
@@ -156,7 +157,7 @@ class Display:
                 except queue.Empty:
                     break
 
-            self._screen.fill(self._color_map[Display.ExtraColors.MAIN_BG])
+            self._screen.fill(self._color_map[IO.ExtraColors.MAIN_BG])
             self._draw()
             pg.display.flip()
             self._clock.tick(self._FPS)
@@ -171,10 +172,7 @@ class Display:
         self._shots_pg_board = PgBoard(self._screen, pg.math.Vector2(20,20), pg.math.Vector2(404,404), self._color_map)
         self._ships_pg_board = PgBoard(self._screen, pg.math.Vector2(20,444), pg.math.Vector2(404,404), self._color_map)
 
-        self.running = True
-
         self._game_loop()
-
         pg.quit()
 
 
@@ -184,7 +182,7 @@ class PgBoard:
             self.rect = rect
             self.color = color
 
-    def __init__(self, screen : pg.surface.Surface, pos : pg.math.Vector2, size : pg.math.Vector2, color_map : Dict[OutActions | Display.ExtraColors, pg.Color], tile_border : pg.math.Vector2 = pg.math.Vector2(2)):
+    def __init__(self, screen : pg.surface.Surface, pos : pg.math.Vector2, size : pg.math.Vector2, color_map : Dict[OutActions | IO.ExtraColors, pg.Color], tile_border : pg.math.Vector2 = pg.math.Vector2(2)):
         self._screen = screen
         self._tileborder = tile_border
         self._rect = pg.Rect(pos.x, pos.y, size.x, size.y)
@@ -201,11 +199,11 @@ class PgBoard:
                     self._tilesize.x - 2 * self._tileborder.x,
                     self._tilesize.y - 2 * self._tileborder.y
                     )
-                row.append(PgBoard.PgTile(rect, self._color_map[Display.ExtraColors.WATER]))
+                row.append(PgBoard.PgTile(rect, self._color_map[IO.ExtraColors.WATER]))
             self._tiles.append(row)
     
     def draw(self, marker : Tuple[int, int]) -> None:
-        pg.draw.rect(self._screen, self._color_map[Display.ExtraColors.BOARD_BG], self._rect)
+        pg.draw.rect(self._screen, self._color_map[IO.ExtraColors.BOARD_BG], self._rect)
         for y in range(10):
             for x in range(10):
                 pg_tile = self._tiles[y][x]
@@ -214,9 +212,9 @@ class PgBoard:
                     row_match = x == marker[0]
                     col_match = y == marker[1]
                     if row_match and col_match:
-                        draw_color = draw_color.lerp(self._color_map[Display.ExtraColors.MARKER_CENTER], 0.5)
+                        draw_color = draw_color.lerp(self._color_map[IO.ExtraColors.MARKER_CENTER], 0.5)
                     elif row_match or col_match:
-                        draw_color = draw_color.lerp(self._color_map[Display.ExtraColors.MARKER_AXIS], 0.5)
+                        draw_color = draw_color.lerp(self._color_map[IO.ExtraColors.MARKER_AXIS], 0.5)
                 pg.draw.rect(self._screen, draw_color, pg_tile.rect)
 
     def get_cell_from_mousecoords(self, pos : Tuple[int, int]) -> Tuple[int,int]:
