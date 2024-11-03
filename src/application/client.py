@@ -26,6 +26,8 @@ server_address = "ws://localhost:4200"
 
 logger = get_logger(__name__)
 
+ping_timeout = False
+
 
 async def receive(websocket) -> dict:
     data = await websocket.recv()
@@ -73,7 +75,9 @@ async def play():
 
     placed_ships_info_sent: bool = False
 
-    async with connect(server_address) as ws:
+    async with connect(
+        server_address, ping_interval=None, ping_timeout=ping_timeout
+    ) as ws:
         await send(ws, starting_client_info)
 
         data = await receive(ws)

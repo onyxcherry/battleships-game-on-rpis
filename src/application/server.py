@@ -19,6 +19,7 @@ from domain.ships import MastedShipsCounts
 from websockets.asyncio.server import serve, ServerConnection
 
 
+ping_timeout = False
 connected_clients: list[Optional[ServerConnection]] = [None, None]
 client_infos: list[Optional[ClientInfo]] = [None, None]
 logger = get_logger(__name__)
@@ -134,7 +135,9 @@ async def listen(websocket: ServerConnection):
 
 
 async def main():
-    async with serve(listen, "0.0.0.0", 4200):
+    async with serve(
+        listen, "0.0.0.0", 4200, ping_interval=None, ping_timeout=ping_timeout
+    ):
         await asyncio.get_running_loop().create_future()  # run forever
 
 
