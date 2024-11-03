@@ -1,10 +1,10 @@
 from typing import Optional
 from uuid import uuid4
 from application.messaging import GameMessage
-from domain.attacks import AttackRequest, AttackResult, AttackResultStatus
+from domain.attacks import AttackRequest, AttackResult
 from domain.field import Field
 from domain.boards import ShipsBoard, ShotsBoard
-from domain.ships import MastedShips
+from domain.ships import MastedShips, MastedShipsCounts
 from dataclasses import dataclass
 
 
@@ -15,7 +15,9 @@ class ClientStatus:
 
 
 class Game:
-    def __init__(self) -> None:
+    def __init__(self, masted_ships: MastedShipsCounts, board_size: int) -> None:
+        self._masted_ships = masted_ships
+        self._board_size = board_size
         self._ships_board = ShipsBoard()
         self._attacks_board = ShotsBoard()
         self._ships_placed = False
@@ -23,6 +25,14 @@ class Game:
     def place_ships(self, ships: MastedShips) -> None:
         self._ships_board.add_ships(ships)
         self._ships_placed = True
+
+    @property
+    def masted_ships_counts(self) -> MastedShipsCounts:
+        return self._masted_ships
+
+    @property
+    def board_size(self) -> int:
+        return self._board_size
 
     @property
     def ships_placed(self) -> bool:
@@ -36,21 +46,11 @@ class Game:
     def all_ships_wrecked(self) -> bool:
         return self._ships_board.ships_floating_count == 0
 
-    def add_attacked_field(self, field: Field) -> None:
+    def attack(self, field: Field) -> GameMessage:
         self._attacks_board.add_attack(field, "Unknown")
-
-    def update_attacked_field_status(
-        self, field: Field, status: AttackResultStatus
-    ) -> None:
-        self._attacks_board.add_attack(field, status)
-
-    def inform_about_status(self) -> ClientStatus:
-        all_ships_placed = self._ships_board.ships_floating_count == 10
-        ready = all_ships_placed and True
-        return ClientStatus(ships_placed=all_ships_placed, ready=ready)
-
-    def start(self) -> None:
-        pass
+        attack_request = AttackRequest(field=field)
+        message = GameMessage(uniqid=uuid4(), data=attack_request)
+        return message
 
     def handle_message(self, message: GameMessage) -> Optional[GameMessage]:
         if isinstance(att_req := message.data, AttackRequest):
@@ -59,7 +59,13 @@ class Game:
             message = GameMessage(uniqid=uuid4(), data=result)
             return message
         elif isinstance(att_res := message.data, AttackResult):
-            result = self._attacks_board.add_attack(att_res.field, att_res.status)
+            self._attacks_board.add_attack(att_res.field, att_res.status)
             return None
         else:
             raise NotImplementedError()
+
+    def show_state(self) -> str:
+        my_ships = self._ships_board.represent_graphically(self._board_size)
+        my_attacks = self._attacks_board.represent_graphically(self._board_size)
+        state = ["SHIPS", my_ships, my_attacks, "ATTACKS"]
+        return "\n".join(state)

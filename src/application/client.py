@@ -14,9 +14,8 @@ from application.messaging import (
     parse_game_message_or_info,
 )
 from config import get_logger
-from domain.attacks import AttackRequest
 from domain.field import Field
-from domain.ships import MastedShips, MastedShipsCounts, Ship
+from domain.ships import MastedShips, Ship
 from websockets import ConnectionClosedOK
 from websockets.asyncio.client import connect
 from domain.client.game import Game
@@ -24,7 +23,6 @@ from typing import Optional
 
 server_address = "ws://localhost:4200"
 
-game = Game()
 
 logger = get_logger(__name__)
 
@@ -43,7 +41,8 @@ async def send(websocket, data: Serializable) -> None:
     logger.debug(f"Sent: {formatted}")
 
 
-async def place_ships(ships_info: MastedShipsCounts, board_size: int):
+async def place_ships(game: Game):
+    # game.masted_ships_counts
     masted_ships = MastedShips(
         single={Ship({Field("A1")}), Ship({Field("H10")}), Ship({Field("J7")})},
         two={Ship({Field("A3"), Field("A4")})},
@@ -55,17 +54,18 @@ async def place_ships(ships_info: MastedShipsCounts, board_size: int):
 
 
 async def get_next_attack() -> Field:
+    return Field("A4")
     field = input("Enter next field to attack:")
     return Field(field)
 
 
 async def play():
-    client_info = ClientInfo(
+    starting_client_info = ClientInfo(
         uniqid=uuid4(),
         connected=True,
-        ships_placed=game.ships_placed,
-        ready=game.ready,
-        all_ships_wrecked=game.all_ships_wrecked,
+        ships_placed=False,
+        ready=False,
+        all_ships_wrecked=False,
     )
     current_game_info: Optional[GameInfo] = None
     placing_ships_task: Optional[asyncio.Task] = None
@@ -74,15 +74,16 @@ async def play():
     placed_ships_info_sent: bool = False
 
     async with connect(server_address) as ws:
-        await send(ws, client_info)
+        await send(ws, starting_client_info)
 
         data = await receive(ws)
         game_info = parse_game_info(data)
+        game = Game(
+            masted_ships=game_info.masted_ships, board_size=game_info.board_size
+        )
 
         if placing_ships_task is None:
-            placing_ships_task = asyncio.create_task(
-                place_ships(game_info.masted_ships, game_info.board_size)
-            )
+            placing_ships_task = asyncio.create_task(place_ships(game))
 
         while True:
             try:
@@ -113,23 +114,25 @@ async def play():
             ):
                 break
 
-        first_iteration = True
-        starting_first = (
+        my_turn_to_attack = (
             current_game_info.extra is not None
             and current_game_info.extra.you_start_first is True
         )
-        next_attack_task = asyncio.create_task(get_next_attack())
         while True:
-            if not first_iteration or starting_first:
-                if not next_attack_task.done():
+            if my_turn_to_attack:
+                if next_attack_task is None:
+                    next_attack_task = asyncio.create_task(get_next_attack())
+                    continue
+                elif not next_attack_task.done():
                     await asyncio.sleep(0.1)
                     continue
-                field_to_attack = await next_attack_task.result()
-                attack_request = AttackRequest(field=field_to_attack)
-                message = GameMessage(uniqid=uuid4(), data=attack_request)
+
+                field_to_attack = next_attack_task.result()
+                message = game.attack(field_to_attack)
                 await send(ws, message)
+                print(game.show_state())
                 next_attack_task = asyncio.create_task(get_next_attack())
-                first_iteration = False
+                my_turn_to_attack = False
 
             try:
                 async with asyncio.timeout(0.1):
@@ -140,8 +143,10 @@ async def play():
                 message = parse_game_message_or_info(data)
                 if isinstance(message, GameMessage):
                     result = game.handle_message(message)
-                    if result is not None:
+
+                    if isinstance(result, GameMessage):
                         await send(ws, result)
+                        my_turn_to_attack = True
                 else:
                     current_game_info = message
 
@@ -154,15 +159,16 @@ async def play():
 
 async def main():
     play_task = asyncio.create_task(play())
-    try:
-        await asyncio.gather(play_task, return_exceptions=True)
-    except Exception as ex:
-        a = play_task.exception()
-        print(f"{a=}")
-        logger.exception(ex)
-    except KeyboardInterrupt:
-        pass
-        # play_task.cancel()
+    await asyncio.gather(play_task, return_exceptions=True)
+    # try:
+    #     await asyncio.gather(play_task, return_exceptions=True)
+    # except Exception as ex:
+    #     a = play_task.exception()
+    #     print(f"{a=}")
+    #     logger.exception(ex)
+    # except KeyboardInterrupt:
+    #     pass
+    #     # play_task.cancel()
 
 
 if __name__ == "__main__":
