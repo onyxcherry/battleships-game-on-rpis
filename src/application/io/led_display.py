@@ -1,4 +1,4 @@
-from domain.client.io.led_matrix import LED_Matrix
+from io.led_matrix import LED_Matrix
 from rpi_ws281x import Color, RGBW
 import queue
 from enum import Enum
