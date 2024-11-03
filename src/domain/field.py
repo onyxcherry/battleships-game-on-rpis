@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Any, Optional
 from string import ascii_uppercase
 
 
@@ -41,12 +41,12 @@ class Field:
     def name(self) -> str:
         return f"{self._y}{self._x}"
 
-    def moved_by(self, y: int, x: int) -> "Field":
-        new_y = chr(ord(self._y) + y)
-        if new_y not in ascii_uppercase:
-            return RuntimeError(f"Invalid y part: {y}")
+    def moved_by(self, y: int, x: int) -> Optional["Field"]:
         new_x = self._x + x
-        return Field(f"{new_y}{new_x}")
+        new_y = chr(ord(self._y) + y)
+        if 0 <= new_x <= 26 and new_y in ascii_uppercase:
+            return Field(f"{new_y}{new_x}")
+        return None
 
     def __str__(self) -> str:
         return f"Field({self.name!s})"
