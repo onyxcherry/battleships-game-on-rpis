@@ -1,9 +1,10 @@
 from typing import Optional
-from application.messaging import Message
+from uuid import uuid4
+from application.messaging import GameMessage
 from domain.attacks import AttackRequest, AttackResult
 from domain.field import Field
 from domain.boards import ShipsBoard, ShotsBoard
-from domain.ships import MastedShips
+from domain.ships import MastedShips, MastedShipsCounts
 from dataclasses import dataclass
 
 from domain.client.display.pg_display import Display
@@ -20,7 +21,9 @@ class ClientStatus:
 
 
 class Game:
-    def __init__(self) -> None:
+    def __init__(self, masted_ships: MastedShipsCounts, board_size: int) -> None:
+        self._masted_ships = masted_ships
+        self._board_size = board_size
         self._ships_board = ShipsBoard()
         self._attacks_board = ShotsBoard()
         self._ships_placed = False
@@ -34,44 +37,47 @@ class Game:
         self._ships_board.add_ships(ships)
         self._ships_placed = True
 
-    def attack(self, field: Field) -> None:
-        attack_result = self._connection.attack(field)
-        self._attacks_board.add_attack(field, attack_result)
-    
-    def test_in_out(self) -> None:
-        self._out_queue.put(OutActions.PlayerTurn)
-        while True:
-            event = self._in_queue.get()
-            action = InActions[event.split(';')[0]]
-            if action == InActions.HoverShots:
-                print(event)
-                self._out_queue.put(event)
-            elif action == InActions.SelectShots:
-                pos = eval(event.split(';')[1])
-                self._out_queue.put(f"{OutActions.MissShots};{pos}")
+    @property
+    def masted_ships_counts(self) -> MastedShipsCounts:
+        return self._masted_ships
 
+    @property
+    def board_size(self) -> int:
+        return self._board_size
 
-    def inform_about_status(self) -> ClientStatus:
-        all_ships_placed = self._ships_board.ships_floating_count == 10
-        ready = all_ships_placed and True
-        return ClientStatus(ships_placed=all_ships_placed, ready=ready)
+    @property
+    def ships_placed(self) -> bool:
+        return self._ships_placed
 
-    def start(self) -> None:
-        test_in_out_t = Thread(target=self.test_in_out)
-        test_in_out_t.daemon = True
+    @property
+    def ready(self) -> bool:
+        return self._ships_placed and True
 
-        self._display_thread.start()
-        test_in_out_t.start()
+    @property
+    def all_ships_wrecked(self) -> bool:
+        return self._ships_board.ships_floating_count == 0
 
-        self._display_thread.join()
+    def attack(self, field: Field) -> GameMessage:
+        self._attacks_board.add_attack(field, "Unknown")
+        attack_request = AttackRequest(field=field)
+        message = GameMessage(uniqid=uuid4(), data=attack_request)
+        return message
 
-    def handle_message(self, message: Message) -> Optional[Message]:
+    def handle_message(self, message: GameMessage) -> Optional[GameMessage]:
         if isinstance(att_req := message.data, AttackRequest):
             status = self._ships_board.process_attack(att_req.field)
             result = AttackResult(field=att_req.field, status=status)
-            return result
+            message = GameMessage(uniqid=uuid4(), data=result)
+            return message
         elif isinstance(att_res := message.data, AttackResult):
-            result = self._attacks_board.add_attack(att_res.field, att_res.status)
+            self._attacks_board.add_attack(att_res.field, att_res.status)
             return None
         else:
             raise NotImplementedError()
+
+    def show_state(self) -> str:
+        space = "\N{EM SPACE}"
+        my_ships = self._ships_board.represent_graphically(self._board_size)
+        my_attacks = self._attacks_board.represent_graphically(self._board_size)
+        state = [f"{space*10}SHIPS", my_ships, my_attacks, f"{space*9}ATTACKS"]
+        return "\n".join(state)

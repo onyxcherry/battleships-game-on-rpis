@@ -1,8 +1,16 @@
+import dataclasses
 import enum
 from domain.attacks import AttackResultStatus
 from domain.field import Field
-from typing import Annotated, Final, Self
+from typing import Final, Self
+from pydantic.dataclasses import dataclass
+
+from pydantic import ConfigDict
+
+
 import copy
+
+dataclass_config = ConfigDict(populate_by_name=True)
 
 
 class ShipStatus(enum.StrEnum):
@@ -80,9 +88,14 @@ class Ship:
         ]
         coastal_zone: set[Field] = set()
         for field in self._fields:
-            for adjacent_field in [
-                field.moved_by(*vector) for vector in adjacency_vectors
-            ]:
+            adjacent_fields_list = list(
+                filter(
+                    lambda field: field is not None,
+                    [field.moved_by(*vector) for vector in adjacency_vectors],
+                )
+            )
+            for adjacent_field in adjacent_fields_list:
+                assert adjacent_field is not None
                 if adjacent_field not in self._fields:
                     coastal_zone.add(adjacent_field)
         return coastal_zone
@@ -118,14 +131,25 @@ class Ship:
     def __str__(self) -> str:
         waving_masts_codes = [field.name for field in self.waving_masts]
         wrecked_masts_codes = [field.name for field in self.wrecked_masts]
-        return f"Ship<{len(self.fields)}>(🏳️ {",".join(waving_masts_codes) or "empty"}|💀 {",".join(wrecked_masts_codes) or "empty"})"
+        waving = ",".join(waving_masts_codes) or "empty"
+        wrecked = ",".join(wrecked_masts_codes) or "empty"
+        return f"Ship<{len(self.fields)}>(🏳️ {waving}|💀 {wrecked})"
 
     def __repr__(self) -> str:
         return f"Ship({self.fields!r})"
 
 
+@dataclasses.dataclass(frozen=True)
 class MastedShips:
-    single: Annotated[set[Ship], 4]
-    two: Annotated[set[Ship], 3]
-    three: Annotated[set[Ship], 2]
-    four: Annotated[set[Ship], 1]
+    single: set[Ship]
+    two: set[Ship]
+    three: set[Ship]
+    four: set[Ship]
+
+
+@dataclass(frozen=True, config=dataclass_config)
+class MastedShipsCounts:
+    single: int
+    two: int
+    three: int
+    four: int
