@@ -7,6 +7,12 @@ from domain.boards import ShipsBoard, ShotsBoard
 from domain.ships import MastedShips, MastedShipsCounts
 from dataclasses import dataclass
 
+from domain.client.display.pg_display import Display
+from domain.actions import InActions, OutActions
+from queue import Queue
+from threading import Thread
+
+
 
 @dataclass(frozen=True)
 class ClientStatus:
@@ -21,6 +27,11 @@ class Game:
         self._ships_board = ShipsBoard()
         self._attacks_board = ShotsBoard()
         self._ships_placed = False
+
+        self._in_queue = Queue()
+        self._out_queue = Queue()
+        self._display = Display(self._in_queue, self._out_queue)
+        self._display_thread = Thread(target=self._display.run)
 
     def place_ships(self, ships: MastedShips) -> None:
         self._ships_board.add_ships(ships)
