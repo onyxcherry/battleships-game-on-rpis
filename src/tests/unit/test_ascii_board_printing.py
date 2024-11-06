@@ -1,7 +1,7 @@
 from domain.attacks import AttackResultStatus
 from domain.boards import ShipsBoard, ShotsBoard
 from domain.field import Field
-from domain.ships import MastedShips, Ship
+from domain.ships import MastedShips, MastedShipsCounts, Ship
 
 
 def tests_rendering_and_printing_ships_board_of_all_ships_states():
@@ -10,7 +10,10 @@ def tests_rendering_and_printing_ships_board_of_all_ships_states():
         wrecked=set(), waving={Field("E5"), Field("F5"), Field("G5")}
     )
     ship3 = Ship.from_parts(wrecked={Field("D9"), Field("D10")}, waving=set())
-    ships = MastedShips(single=set(), two={ship3}, three={ship1, ship2}, four=set())
+    counts = MastedShipsCounts(single=0, two=1, three=2, four=0)
+    ships = MastedShips(
+        counts=counts, single=set(), two={ship3}, three={ship1, ship2}, four=set()
+    )
     board = ShipsBoard()
     board.add_ships(ships)
     expected_output = """   1 2 3 4 5 6 7 8 9 10
