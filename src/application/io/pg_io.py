@@ -1,11 +1,15 @@
 import pygame as pg
-import queue
+import janus
 from enum import Enum
 from typing import List, Tuple, Dict
-from domain.actions import InActions, OutActions
+from application.io.actions import InActions, OutActions
 from threading import Event as th_Event
 
 class IO:
+
+    BOARD_MARGIN = pg.math.Vector2(20,20)
+    BOARD_DISPLAY_SIZE = pg.math.Vector2(400,400)
+    TILE_BORDER = pg.math.Vector2(2,2)
 
     class ExtraColors(Enum):
         MAIN_BG = 1
@@ -19,7 +23,8 @@ class IO:
         AROUND_DESTROYED = 7
 
 
-    def __init__(self, input_queue : queue.Queue, output_queue : queue.Queue, stop_running : th_Event):
+    def __init__(self, board_size : int, input_queue : janus.SyncQueue[str], output_queue : janus.SyncQueue[str], stop_running : th_Event):
+        self._board_size = board_size
         self._in_queue = input_queue
         self._out_queue = output_queue
         self._stop_running = stop_running
@@ -28,10 +33,11 @@ class IO:
         self._shots_pg_board : PgBoard = None
         self._ships_pg_board : PgBoard = None
 
+        self._place_ships = False
         self._shooting = False
 
-        self._shots_marker_pos = (0, 0)
-        self._ships_marker_pos = (-1, -1)
+        self._ships_marker_pos : Tuple[int, int] = (0, 0)
+        self._shots_marker_pos : Tuple[int, int] = (0, 0)
 
         self._color_map = {
             OutActions.HitShips : pg.Color('red4'),
@@ -44,7 +50,8 @@ class IO:
             OutActions.MissShots : pg.Color('blueviolet'),
 
             IO.ExtraColors.WATER : pg.Color('aqua'),
-            IO.ExtraColors.WAVING_MAST : pg.Color('gray20'),
+            OutActions.NoShip : pg.Color('aqua'),
+            OutActions.Ship : pg.Color('gray20'),
 
             IO.ExtraColors.AROUND_DESTROYED : pg.Color('royalblue'),
 
@@ -54,11 +61,61 @@ class IO:
             IO.ExtraColors.MARKER_AXIS : pg.Color('springgreen')
         }
     
-    def _try_put_in_queue(self, action : InActions, tile : Tuple[int, int]) -> None:
+    def _try_put_in_queue(self, action : InActions, tile : Tuple[int, int] = (0,0)) -> None:
         try:
             self._in_queue.put_nowait(f"{action.value};{tile}")
-        except queue.Full:
+        except janus.SyncQueueFull:
             print("out queue full!")
+    
+    def _handle_pg_marker_keydown(self, event : pg.event.Event) -> bool:
+        if event.key == pg.K_SPACE:
+            if self._shooting:
+                self._try_put_in_queue(InActions.SelectShots, self._shots_marker_pos)
+                return True
+            elif self._place_ships:
+                self._try_put_in_queue(InActions.SelectShips, self._ships_marker_pos)
+                return True
+
+
+        marker_diff = (0,0)
+
+        if event.key == pg.K_w:
+            marker_diff = (0,-1)
+
+        elif event.key == pg.K_s:
+            marker_diff = (0,1)
+
+        elif event.key == pg.K_a:
+            marker_diff = (-1,0)
+            
+        elif event.key == pg.K_d:
+            marker_diff = (1,0)
+        
+        if marker_diff == (0,0):
+            return False
+        
+        if self._shooting:
+            new_marker_pos = (self._shots_marker_pos[0] + marker_diff[0], 
+                                self._shots_marker_pos[0] + marker_diff[1])
+            new_marker_pos = (
+                max(0, min(self._board_size-1, new_marker_pos[0])),
+                max(0, min(self._board_size-1, new_marker_pos[1])))
+            
+            if new_marker_pos != self._shots_marker_pos:
+                self._try_put_in_queue(InActions.HoverShots, new_marker_pos)
+        
+        elif self._place_ships:
+            
+            new_marker_pos = (self._ships_marker_pos[0] + marker_diff[0], 
+                                self._ships_marker_pos[1] + marker_diff[1])
+            new_marker_pos = (
+                max(0, min(self._board_size-1, new_marker_pos[0])),
+                max(0, min(self._board_size-1, new_marker_pos[1])))
+
+            if new_marker_pos != self._ships_marker_pos:
+                self._try_put_in_queue(InActions.HoverShips, new_marker_pos)
+        
+        return True
     
     def _handle_pg_input_event(self, event : pg.event.Event) -> None:
         if event.type == pg.MOUSEMOTION:
@@ -70,6 +127,13 @@ class IO:
                 if tile == self._shots_marker_pos:
                     return
                 self._try_put_in_queue(InActions.HoverShots, tile)
+            elif self._place_ships:
+                tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
+                if tile == (-1, -1):
+                    return
+                if tile == self._ships_marker_pos:
+                    return
+                self._try_put_in_queue(InActions.HoverShips, tile)
         
         elif event.type == pg.MOUSEBUTTONDOWN:
             pos=event.pos
@@ -78,36 +142,30 @@ class IO:
                 if tile == (-1, -1):
                     return
                 self._try_put_in_queue(InActions.SelectShots, tile)
+            elif self._place_ships:
+                tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
+                if tile == (-1, -1):
+                    return
+                self._try_put_in_queue(InActions.SelectShips, tile)
         
         elif event.type == pg.KEYDOWN:
-            
-            if event.key == pg.K_SPACE:
-                self._try_put_in_queue(InActions.SelectShots, self._shots_marker_pos)
-
-            new_marker_pos = False
-
-            if event.key == pg.K_w:
-                new_marker_pos = (self._shots_marker_pos[0], self._shots_marker_pos[1] - 1)
-
-            elif event.key == pg.K_s:
-                new_marker_pos = (self._shots_marker_pos[0], self._shots_marker_pos[1] + 1)
-
-            elif event.key == pg.K_a:
-                new_marker_pos = (self._shots_marker_pos[0] - 1, self._shots_marker_pos[1])
-                
-            elif event.key == pg.K_d:
-                new_marker_pos = (self._shots_marker_pos[0] + 1, self._shots_marker_pos[1])
-
-            if new_marker_pos:
-                new_marker_pos = (max(0, min(9, new_marker_pos[0])), max(0, min(9, new_marker_pos[1])))
-                if new_marker_pos != self._shots_marker_pos:
-                    self._try_put_in_queue(InActions.HoverShots, new_marker_pos)
+            if self._handle_pg_marker_keydown(event): return
+            if event.key == pg.K_f:
+                self._try_put_in_queue(InActions.FinishedPlacing)
 
     def _handle_output_event(self, event : str) -> None:
         splitted = event.split(';')
 
         action = OutActions[splitted[0]]
 
+        if action == OutActions.PlaceShips:
+            self._place_ships = True
+            return
+        
+        if action == OutActions.FinishedPlacing:
+            self._place_ships = False
+            return
+        
         if action == OutActions.PlayerTurn:
             self._shooting = True
             return
@@ -154,7 +212,7 @@ class IO:
                 try:
                     event = self._out_queue.get_nowait()
                     self._handle_output_event(event)
-                except queue.Empty:
+                except janus.SyncQueueEmpty:
                     break
 
             self._screen.fill(self._color_map[IO.ExtraColors.MAIN_BG])
@@ -166,11 +224,11 @@ class IO:
         pg.init()
 
         pg.display.set_caption("Battleships PC Client")
-        self._screen : pg.Surface = pg.display.set_mode((440, 860))
+        self._screen : pg.Surface = pg.display.set_mode((2*IO.BOARD_MARGIN.x+IO.BOARD_DISPLAY_SIZE.x, 4*IO.BOARD_MARGIN.y+2*IO.BOARD_DISPLAY_SIZE.y))
         self._clock = pg.time.Clock()
 
-        self._shots_pg_board = PgBoard(self._screen, pg.math.Vector2(20,20), pg.math.Vector2(404,404), self._color_map)
-        self._ships_pg_board = PgBoard(self._screen, pg.math.Vector2(20,444), pg.math.Vector2(404,404), self._color_map)
+        self._shots_pg_board = PgBoard(self._screen, IO.BOARD_MARGIN, self._board_size, self._color_map)
+        self._ships_pg_board = PgBoard(self._screen, pg.math.Vector2(IO.BOARD_MARGIN.x, 3*IO.BOARD_MARGIN.y+IO.BOARD_DISPLAY_SIZE.y), self._board_size, self._color_map)
 
         self._game_loop()
         pg.quit()
@@ -182,30 +240,28 @@ class PgBoard:
             self.rect = rect
             self.color = color
 
-    def __init__(self, screen : pg.surface.Surface, pos : pg.math.Vector2, size : pg.math.Vector2, color_map : Dict[OutActions | IO.ExtraColors, pg.Color], tile_border : pg.math.Vector2 = pg.math.Vector2(2)):
+    def __init__(self, screen : pg.surface.Surface, pos : pg.math.Vector2, board_size : int, color_map : Dict[OutActions | IO.ExtraColors, pg.Color]):
         self._screen = screen
-        self._tileborder = tile_border
-        self._rect = pg.Rect(pos.x, pos.y, size.x, size.y)
-        self._tilesize = (size - 2 * self._tileborder) / 10
+        self._rect = pg.Rect(pos, IO.BOARD_DISPLAY_SIZE + (IO.TILE_BORDER * 2))
+        self._size = board_size
+        self._tilesize = IO.BOARD_DISPLAY_SIZE / self._size
         self._color_map = color_map
 
         self._tiles : List[List[PgBoard.PgTile]] = []
-        for y in range(10):
+        for y in range(self._size):
             row : List[PgBoard.PgTile] = []
-            for x in range(10):
+            for x in range(self._size):
                 rect = pg.Rect(
-                    self._rect.x + self._tilesize.x * x + 2 * self._tileborder.x,
-                    self._rect.y + self._tilesize.y * y + 2 * self._tileborder.y,
-                    self._tilesize.x - 2 * self._tileborder.x,
-                    self._tilesize.y - 2 * self._tileborder.y
-                    )
+                    self._rect.topleft + (self._tilesize.elementwise() * pg.math.Vector2(x,y) + (IO.TILE_BORDER * 2)),
+                    self._tilesize - (IO.TILE_BORDER * 2)
+                )
                 row.append(PgBoard.PgTile(rect, self._color_map[IO.ExtraColors.WATER]))
             self._tiles.append(row)
     
     def draw(self, marker : Tuple[int, int]) -> None:
         pg.draw.rect(self._screen, self._color_map[IO.ExtraColors.BOARD_BG], self._rect)
-        for y in range(10):
-            for x in range(10):
+        for y in range(self._size):
+            for x in range(self._size):
                 pg_tile = self._tiles[y][x]
                 draw_color : pg.Color = pg_tile.color
                 if marker != (-1, -1):
@@ -221,13 +277,13 @@ class PgBoard:
         rel_pos = (pos[0] - self._rect.x, pos[1] - self._rect.y)
         cell = (int(rel_pos[0] // self._tilesize.x), int(rel_pos[1] // self._tilesize.y))
 
-        if cell[0] < 0 or cell[0] > 9 or cell[1] < 0 or cell[1] > 9:
+        if cell[0] < 0 or cell[0] >= self._size or cell[1] < 0 or cell[1] >= self._size:
             return (-1,-1)
         
         cell_off = (rel_pos[0] - self._tilesize.x * cell[0], rel_pos[1] - self._tilesize.y * cell[1])
     
-        if cell_off[0] < self._tileborder.x or cell_off[0] > self._tilesize.x - self._tileborder.x \
-            or cell_off[1] < self._tileborder.y or cell_off[1] > self._tilesize.y - self._tileborder.y:
+        if cell_off[0] < IO.TILE_BORDER.x or cell_off[0] > self._tilesize.x - IO.TILE_BORDER.x \
+            or cell_off[1] < IO.TILE_BORDER.y or cell_off[1] > self._tilesize.y - IO.TILE_BORDER.y:
             
             return (-1, -1)
         

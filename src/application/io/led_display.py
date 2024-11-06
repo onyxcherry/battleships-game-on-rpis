@@ -1,9 +1,9 @@
-from io.led_matrix import LED_Matrix
+from application.io.led_matrix import LED_Matrix
 from rpi_ws281x import Color, RGBW
 import queue
 from enum import Enum
 from typing import List, Tuple, Dict
-from domain.actions import OutActions
+from application.io.actions import OutActions
 from threading import Event
 
 class Display:
