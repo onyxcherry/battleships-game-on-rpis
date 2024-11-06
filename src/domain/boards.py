@@ -156,9 +156,8 @@ class ShotsBoard:
     def add_attack(
         self, field: Field, result: AttackResultStatus | UnknownStatus
     ) -> None:
-        if result != AttackResultStatus.ShotDown:
-            self._attacks[field] = result
-        else:
+        self._attacks[field] = result
+        if result == AttackResultStatus.ShotDown:
             shot_down_ship_fields = get_all_ship_fields(
                 set(self._attacks.keys()), field
             )
