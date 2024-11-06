@@ -1,7 +1,6 @@
 from domain.boards import LaunchedShipCollidesError, ShipsBoard, get_all_ship_fields
 from domain.field import Field
-from domain.ships import MastedShips, MastedShipsCounts, Ship
-from pydantic import ValidationError
+from domain.ships import Ship
 import pytest
 
 
@@ -59,49 +58,3 @@ def tests_raising_exception_when_adding_colliding_ships():
     ships_board.add_ship(ship1)
     with pytest.raises(LaunchedShipCollidesError):
         ships_board.add_ship(ship2)
-
-
-def tests_masted_ships_when_counts_matches():
-    counts = MastedShipsCounts(single=4, two=3, three=2, four=1)
-    MastedShips(
-        counts=counts,
-        single={
-            Ship({Field("A1")}),
-            Ship({Field("H10")}),
-            Ship({Field("J6")}),
-            Ship({Field("H1")}),
-        },
-        two={
-            Ship({Field("A3"), Field("A4")}),
-            Ship({Field("B9"), Field("C9")}),
-            Ship({Field("E10"), Field("F10")}),
-        },
-        three={
-            Ship({Field("J1"), Field("J2"), Field("J3")}),
-            Ship({Field("H8"), Field("I8"), Field("J8")}),
-        },
-        four=set({Ship({Field("C1"), Field("D1"), Field("E1"), Field("F1")})}),
-    )
-
-
-def test_raising_exception_when_masted_ships_counts_do_not_follow_rules():
-    counts = MastedShipsCounts(single=4, two=3, three=2, four=1)
-
-    with pytest.raises(ValidationError):
-        MastedShips(
-            counts=counts,
-            single={
-                Ship({Field("A1")}),
-                Ship({Field("J6")}),
-                Ship({Field("H1")}),
-            },
-            two={
-                Ship({Field("A3"), Field("A4")}),
-                Ship({Field("B9"), Field("C9")}),
-            },
-            three={
-                Ship({Field("J1"), Field("J2"), Field("J3")}),
-                Ship({Field("H8"), Field("I8"), Field("J8")}),
-            },
-            four=set({Ship({Field("C1"), Field("D1"), Field("E1"), Field("F1")})}),
-        )

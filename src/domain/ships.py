@@ -163,3 +163,16 @@ class MastedShips:
         ):
             raise ValueError("Improper counts of ships")
         return self
+
+    @classmethod
+    def from_set(cls, ships: set[Ship], counts: MastedShipsCounts) -> Self:
+        ships_of_mast_count = {1: set(), 2: set(), 3: set(), 4: set()}
+        for ship in ships:
+            ships_of_mast_count[ship.original_masts_count].add(ship)
+        return MastedShips(
+            counts=counts,
+            single=ships_of_mast_count[1],
+            two=ships_of_mast_count[2],
+            three=ships_of_mast_count[3],
+            four=ships_of_mast_count[4],
+        )
