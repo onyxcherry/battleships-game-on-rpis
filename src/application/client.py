@@ -55,9 +55,9 @@ async def place_ships(game: Game, game_io: IO):
     # )
     # game.place_ships(masted_ships)
     # await asyncio.sleep(0.1)
-    ships = await game_io.get_ships()
     
-    #TODO generate MastedShips and put them in game
+    masted_shpis = await game_io.get_masted_ships()
+    game.place_ships(masted_shpis)
 
 
 async def read_input() -> str:
@@ -109,7 +109,10 @@ async def play():
             masted_ships=game_info.masted_ships, board_size=game_info.board_size
         )
 
-        game_io = IO(game_info.board_size)
+        game_io = IO(
+            masted_ships=game_info.masted_ships, board_size=game_info.board_size
+        )
+        game_io.start()
 
         if placing_ships_task is None:
             placing_ships_task = asyncio.create_task(place_ships(game, game_io))

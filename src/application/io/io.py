@@ -6,9 +6,7 @@ from threading import Thread
 from application.io.actions import InActions, OutActions
 from domain.field import Field
 from domain.boards import ShipsBoard
-from domain.ships import Ship
-
-# from application.io.pg_io import IO
+from domain.ships import MastedShips, MastedShipsCounts
 
 try:   # distinguish pc and rpi by presence of pygame
     from application.io.pg_io import IO as pg_IO
@@ -23,11 +21,12 @@ except ImportError:
 
 
 class IO:
-    def __init__(self, board_size : int):
+    def __init__(self, masted_ships: MastedShipsCounts, board_size: int):
         self._in_queue : janus.Queue[str] = None
         self._out_queue : janus.Queue[str] = None
         self._stop = Event()
         self._board_size = board_size
+        self._masted_counts = masted_ships
 
         if ON_PC:
             self._io : pg_IO = None
@@ -45,11 +44,12 @@ class IO:
         field = Field.fromTuple(field_tup)
         return (action, field)
 
-    async def get_ships(self) -> set[Ship]:
+    async def get_masted_ships(self) -> MastedShips:
 
         await self._out_queue.async_q.put(OutActions.PlaceShips)
 
         ships_fields : set[Field] = set()
+        masted_ships : MastedShips = None
 
         while not self._stop.is_set():
             try:
@@ -72,9 +72,15 @@ class IO:
                     ships_fields.add(field)
 
             elif action == InActions.FinishedPlacing:
-                break
+                try:
+                    ships = ShipsBoard.build_ships_from_fields(ships_fields)
+                    masted_ships = MastedShips.from_set(ships, self._masted_counts)
+                    break
+                except ValueError as err:
+                    print(err)
+                    # TODO inform player that ships are placed incorrectly
         
-        return ShipsBoard.build_ships_from_fields(ships_fields)
+        return masted_ships
     
     def start(self) -> None:
         self._in_queue = janus.Queue()
@@ -106,17 +112,15 @@ class IO:
     async def run(self) -> None:
 
         self.start()
+        masted_counts = MastedShipsCounts(3,2,1,0)
 
-        test_place_ships_task = asyncio.create_task(self.get_ships())
+        test_place_ships_task = asyncio.create_task(self.get_masted_ships(masted_counts))
 
-        try:
-            while not self._stop.is_set():
-                if test_place_ships_task.done():
-                    print(test_place_ships_task.result())
-                    break
-                await asyncio.sleep(0.1)
-        except KeyboardInterrupt:
-            pass
+        while not self._stop.is_set():
+            if test_place_ships_task.done():
+                print(test_place_ships_task.result())
+                break
+            await asyncio.sleep(0.1)
         
         self.stop()
     
@@ -126,4 +130,7 @@ class IO:
 
 if __name__ == '__main__':
     io = IO(5)
-    asyncio.run(io.run())
+    try:
+        asyncio.run(io.run())
+    except KeyboardInterrupt:
+        io.stop()
