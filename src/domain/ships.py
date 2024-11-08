@@ -1,16 +1,14 @@
-import dataclasses
 import enum
 from domain.attacks import AttackResultStatus
 from domain.field import Field
 from typing import Final, Self
 from pydantic.dataclasses import dataclass
-
-from pydantic import ConfigDict
-
-
 import copy
 
-dataclass_config = ConfigDict(populate_by_name=True)
+from pydantic import ConfigDict, model_validator
+
+
+dataclass_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 
 class ShipStatus(enum.StrEnum):
@@ -139,17 +137,42 @@ class Ship:
         return f"Ship({self.fields!r})"
 
 
-@dataclasses.dataclass(frozen=True)
-class MastedShips:
-    single: set[Ship]
-    two: set[Ship]
-    three: set[Ship]
-    four: set[Ship]
-
-
 @dataclass(frozen=True, config=dataclass_config)
 class MastedShipsCounts:
     single: int
     two: int
     three: int
     four: int
+
+
+@dataclass(frozen=True, config=dataclass_config)
+class MastedShips:
+    counts: MastedShipsCounts
+    single: set[Ship]
+    two: set[Ship]
+    three: set[Ship]
+    four: set[Ship]
+
+    @model_validator(mode="after")
+    def verify_counts(self) -> Self:
+        if (
+            len(self.single) != self.counts.single
+            or len(self.two) != self.counts.two
+            or len(self.three) != self.counts.three
+            or len(self.four) != self.counts.four
+        ):
+            raise ValueError("Improper counts of ships")
+        return self
+
+    @classmethod
+    def from_set(cls, ships: set[Ship], counts: MastedShipsCounts) -> Self:
+        ships_of_mast_count = {1: set(), 2: set(), 3: set(), 4: set()}
+        for ship in ships:
+            ships_of_mast_count[ship.original_masts_count].add(ship)
+        return MastedShips(
+            counts=counts,
+            single=ships_of_mast_count[1],
+            two=ships_of_mast_count[2],
+            three=ships_of_mast_count[3],
+            four=ships_of_mast_count[4],
+        )
