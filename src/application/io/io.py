@@ -6,6 +6,7 @@ from threading import Thread
 from application.io.actions import InActions, OutActions
 from domain.field import Field
 from domain.boards import ShipsBoard
+from domain.ships import Ship
 
 # from application.io.pg_io import IO
 
@@ -30,9 +31,12 @@ class IO:
 
         if ON_PC:
             self._io : pg_IO = None
+            self._io_t : Thread = None
         else:
             self._display : Display = None
+            self._out_t : Thread = None
             self._input : Rpi_Input = None
+            self._in_t : Thread = None
 
     async def get_in_action(self) -> Tuple[InActions, Field]:
         event : str = await self._in_queue.async_q.get(); splitted = event.split(';')
@@ -41,8 +45,11 @@ class IO:
         field = Field.fromTuple(field_tup)
         return (action, field)
 
-    async def place_ships(self) -> set[Field]:
-        ship_fields : set[Field] = set()
+    async def get_ships(self) -> set[Ship]:
+
+        await self._out_queue.async_q.put(OutActions.PlaceShips)
+
+        ships_fields : set[Field] = set()
 
         while not self._stop.is_set():
             try:
@@ -57,36 +64,50 @@ class IO:
                 await self._out_queue.async_q.put(f"{OutActions.HoverShips};{tile}")
             
             elif action == InActions.SelectShips:
-                if field in ship_fields:
+                if field in ships_fields:
                     await self._out_queue.async_q.put(f"{OutActions.NoShip};{tile}")
-                    ship_fields.remove(field)
+                    ships_fields.remove(field)
                 else:
                     await self._out_queue.async_q.put(f"{OutActions.Ship};{tile}")
-                    ship_fields.add(field)
+                    ships_fields.add(field)
 
             elif action == InActions.FinishedPlacing:
                 break
         
-        return ship_fields
-
-    async def run(self) -> None:
+        return ShipsBoard.build_ships_from_fields(ships_fields)
+    
+    def start(self) -> None:
         self._in_queue = janus.Queue()
         self._out_queue = janus.Queue()
         if ON_PC:
             self._io = pg_IO(self._board_size, self._in_queue.sync_q, self._out_queue.sync_q, self._stop)
-            io_t = Thread(target=self._io.run)
-            io_t.start()
+            self._io_t = Thread(target=self._io.run)
+            self._io_t.start()
         else:
             self._display = Display(self._out_queue.sync_q, self._stop)
             self._input = Rpi_Input(self._in_queue.sync_q, self._stop)
-            in_t = Thread(target=self._input.run)
-            out_t = Thread(target=self._display.run)
-            in_t.start()
-            out_t.start()
+            self._in_t = Thread(target=self._input.run)
+            self._out_t = Thread(target=self._display.run)
+            self._in_t.start()
+            self._out_t.start()
+    
+    def stop(self) -> None:
+        self._stop.set()
+        
+        if ON_PC:
+            self._io_t.join()
+        else:
+            self._in_t.join()
+            self._out_t.join()
 
-        await self._out_queue.async_q.put(OutActions.PlaceShips)
+        self.clear()
+        print(" IO finished")
 
-        test_place_ships_task = asyncio.create_task(self.place_ships())
+    async def run(self) -> None:
+
+        self.start()
+
+        test_place_ships_task = asyncio.create_task(self.get_ships())
 
         try:
             while not self._stop.is_set():
@@ -97,16 +118,7 @@ class IO:
         except KeyboardInterrupt:
             pass
         
-        self._stop.set()
-        
-        if ON_PC:
-            io_t.join()
-        else:
-            in_t.join()
-            out_t.join()
-
-        self.clear()
-        print(" IO finished")
+        self.stop()
     
     def clear(self) -> None:
         if not ON_PC:

@@ -20,6 +20,7 @@ from domain.ships import MastedShips, Ship
 from websockets import ConnectionClosedOK
 from websockets.asyncio.client import connect
 from domain.client.game import Game
+from application.io.io import IO
 from typing import Optional
 
 server_address = "ws://localhost:4200"
@@ -44,16 +45,19 @@ async def send(websocket, data: Serializable) -> None:
     logger.debug(f"Sent: {formatted}")
 
 
-async def place_ships(game: Game):
+async def place_ships(game: Game, game_io: IO):
     # game.masted_ships_counts
-    masted_ships = MastedShips(
-        single={Ship({Field("A1")}), Ship({Field("H10")}), Ship({Field("J7")})},
-        two={Ship({Field("A3"), Field("A4")})},
-        three=set(),
-        four=set(),
-    )
-    game.place_ships(masted_ships)
-    await asyncio.sleep(0.1)
+    # masted_ships = MastedShips(
+    #     single={Ship({Field("A1")}), Ship({Field("H10")}), Ship({Field("J7")})},
+    #     two={Ship({Field("A3"), Field("A4")})},
+    #     three=set(),
+    #     four=set(),
+    # )
+    # game.place_ships(masted_ships)
+    # await asyncio.sleep(0.1)
+    ships = await game_io.get_ships()
+    
+    #TODO generate MastedShips and put them in game
 
 
 async def read_input() -> str:
@@ -105,8 +109,10 @@ async def play():
             masted_ships=game_info.masted_ships, board_size=game_info.board_size
         )
 
+        game_io = IO(game_info.board_size)
+
         if placing_ships_task is None:
-            placing_ships_task = asyncio.create_task(place_ships(game))
+            placing_ships_task = asyncio.create_task(place_ships(game, game_io))
 
         while True:
             try:
