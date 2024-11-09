@@ -10,6 +10,8 @@ class InActions(enum.StrEnum):
     FinishedPlacing = "FinishedPlacing"
 
 class OutActions(enum.StrEnum):
+    UnknownShots = "UnknownShots"
+
     HoverShots = "HoverShots"
     HoverShips = "HoverShips"
 
@@ -30,3 +32,10 @@ class OutActions(enum.StrEnum):
 
     PlaceShips = "PlaceShips"
     FinishedPlacing = "FinishedPlacing"
+
+OUT_SHOTS_ACTIONS : set[OutActions] = {
+    OutActions.UnknownShots,
+    OutActions.MissShots,
+    OutActions.HitShots,
+    OutActions.DestroyedShots,
+}

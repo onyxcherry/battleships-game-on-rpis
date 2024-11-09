@@ -2,7 +2,7 @@ import pygame as pg
 import janus
 from enum import Enum
 from typing import List, Tuple, Dict
-from application.io.actions import InActions, OutActions
+from application.io.actions import InActions, OutActions, OUT_SHOTS_ACTIONS
 from threading import Event as th_Event
 
 class IO:
@@ -40,11 +40,13 @@ class IO:
         self._shots_marker_pos : Tuple[int, int] = (0, 0)
 
         self._color_map = {
-            OutActions.HitShips : pg.Color('red4'),
-            OutActions.HitShots : pg.Color('red4'),
+            OutActions.UnknownShots : pg.Color('chartreuse4'),
 
-            OutActions.DestroyedShips : pg.Color('saddlebrown'),
-            OutActions.DestroyedShots : pg.Color('saddlebrown'),
+            OutActions.HitShips : pg.Color('red'),
+            OutActions.HitShots : pg.Color('red'),
+
+            OutActions.DestroyedShips : pg.Color('red4'),
+            OutActions.DestroyedShots : pg.Color('red4'),
             
             OutActions.MissShips : pg.Color('blueviolet'),
             OutActions.MissShots : pg.Color('blueviolet'),
@@ -164,6 +166,7 @@ class IO:
         
         if action == OutActions.FinishedPlacing:
             self._place_ships = False
+            self._ships_marker_pos = (-1,-1)
             return
         
         if action == OutActions.PlayerTurn:
@@ -173,6 +176,8 @@ class IO:
         if action == OutActions.OpponentTurn:
             self._shooting = False
             return
+        
+        print(event)
 
         if action == OutActions.HoverShots:
             pos : Tuple[int, int] = eval(splitted[1])
@@ -190,7 +195,7 @@ class IO:
         pos : Tuple[int, int] = eval(splitted[1])
         color = self._color_map[action]
 
-        if self._shooting:
+        if action in OUT_SHOTS_ACTIONS:
             self._shots_pg_board.change_cell(pos, color)
         else:
             self._ships_pg_board.change_cell(pos, color)

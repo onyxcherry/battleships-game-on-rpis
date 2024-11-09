@@ -7,6 +7,7 @@ from application.io.actions import InActions, OutActions
 from domain.field import Field
 from domain.boards import ShipsBoard
 from domain.ships import MastedShips, MastedShipsCounts
+from domain.attacks import AttackResult, AttackResultStatus
 
 try:   # distinguish pc and rpi by presence of pygame
     from application.io.pg_io import IO as pg_IO
@@ -44,43 +45,105 @@ class IO:
         field = Field.fromTuple(field_tup)
         return (action, field)
 
-    async def get_masted_ships(self) -> MastedShips:
+    async def get_masted_ships(self) -> Optional[MastedShips]:
 
         await self._out_queue.async_q.put(OutActions.PlaceShips)
 
         ships_fields : set[Field] = set()
         masted_ships : MastedShips = None
 
-        while not self._stop.is_set():
-            try:
-                async with asyncio.timeout(0.1):
-                    action, field = await self.get_in_action()
-            except TimeoutError:
-                continue
-
-            y, x = field.vector_from_zeros
-            tile = (x,y)
-            if action == InActions.HoverShips:
-                await self._out_queue.async_q.put(f"{OutActions.HoverShips};{tile}")
-            
-            elif action == InActions.SelectShips:
-                if field in ships_fields:
-                    await self._out_queue.async_q.put(f"{OutActions.NoShip};{tile}")
-                    ships_fields.remove(field)
-                else:
-                    await self._out_queue.async_q.put(f"{OutActions.Ship};{tile}")
-                    ships_fields.add(field)
-
-            elif action == InActions.FinishedPlacing:
+        try:
+            while not self._stop.is_set():
                 try:
-                    ships = ShipsBoard.build_ships_from_fields(ships_fields)
-                    masted_ships = MastedShips.from_set(ships, self._masted_counts)
-                    break
-                except ValueError as err:
-                    print(err)
-                    # TODO inform player that ships are placed incorrectly
-        
+                    async with asyncio.timeout(0.1):
+                        action, field = await self.get_in_action()
+                except TimeoutError:
+                    continue
+
+                y, x = field.vector_from_zeros
+                tile = (x,y)
+                if action == InActions.HoverShips:
+                    await self._out_queue.async_q.put(f"{OutActions.HoverShips};{tile}")
+                
+                elif action == InActions.SelectShips:
+                    if field in ships_fields:
+                        await self._out_queue.async_q.put(f"{OutActions.NoShip};{tile}")
+                        ships_fields.remove(field)
+                    else:
+                        await self._out_queue.async_q.put(f"{OutActions.Ship};{tile}")
+                        ships_fields.add(field)
+
+                elif action == InActions.FinishedPlacing:
+                    try:
+                        ships = ShipsBoard.build_ships_from_fields(ships_fields)
+                        masted_ships = MastedShips.from_set(ships, self._masted_counts)
+                        break
+                    except ValueError as err:
+                        print(err)
+                        print(self._masted_counts)
+                        # TODO inform player that ships are placed incorrectly
+
+        except asyncio.CancelledError:
+            pass
+
+        await self._out_queue.async_q.put(OutActions.FinishedPlacing)
         return masted_ships
+    
+    async def get_next_attack(self) -> Optional[Field]:
+        await self._out_queue.async_q.put(OutActions.PlayerTurn)
+
+        field : Field = None
+        tile = (-1,-1)
+
+        try:
+            while not self._stop.is_set():
+                try:
+                    async with asyncio.timeout(0.1):
+                        action, field = await self.get_in_action()
+                except TimeoutError:
+                    continue
+
+                y, x = field.vector_from_zeros
+                tile = (x,y)
+
+                if action == InActions.HoverShots:
+                    await self._out_queue.async_q.put(f"{OutActions.HoverShots};{tile}")
+                
+                elif action == InActions.SelectShots:
+                    break
+
+        except asyncio.CancelledError:
+            pass
+        
+        await self._out_queue.async_q.put(f"{OutActions.UnknownShots};{tile}")
+        await self._out_queue.async_q.put(OutActions.OpponentTurn)
+        return field
+    
+    async def player_attack_result(self, result : AttackResult) -> None:
+        action : OutActions = {
+            AttackResultStatus.Missed : OutActions.MissShots,
+            AttackResultStatus.Shot : OutActions.HitShots,
+            AttackResultStatus.AlreadyShot : OutActions.HitShots, # TODO inform player
+            AttackResultStatus.ShotDown : OutActions.DestroyedShots
+        }[AttackResultStatus[result.status]]
+
+        y, x = result.field.vector_from_zeros
+        tile = (x,y)
+
+        await self._out_queue.async_q.put(f"{action};{tile}")
+    
+    async def opponent_attack_result(self, result : AttackResult) -> None:
+        action : OutActions = {
+            AttackResultStatus.Missed : OutActions.MissShips,
+            AttackResultStatus.Shot : OutActions.HitShips,
+            AttackResultStatus.AlreadyShot : OutActions.HitShips, # TODO inform player
+            AttackResultStatus.ShotDown : OutActions.DestroyedShips
+        }[AttackResultStatus[result.status]]
+
+        y, x = result.field.vector_from_zeros
+        tile = (x,y)
+
+        await self._out_queue.async_q.put(f"{action};{tile}")
     
     def start(self) -> None:
         self._in_queue = janus.Queue()
@@ -109,18 +172,21 @@ class IO:
         self.clear()
         print(" IO finished")
 
-    async def run(self) -> None:
+    async def test_run(self) -> None:
 
         self.start()
-        masted_counts = MastedShipsCounts(3,2,1,0)
 
-        test_place_ships_task = asyncio.create_task(self.get_masted_ships(masted_counts))
-
+        test_place_ships_task = asyncio.create_task(self.get_masted_ships())
+        ships_task_p = False
         while not self._stop.is_set():
-            if test_place_ships_task.done():
+            if test_place_ships_task.done() and not ships_task_p:
                 print(test_place_ships_task.result())
+                ships_task_p = True
                 break
             await asyncio.sleep(0.1)
+        
+        print(await self.get_next_attack())
+        await asyncio.sleep(4)
         
         self.stop()
     
@@ -129,8 +195,9 @@ class IO:
             self._display.clear()
 
 if __name__ == '__main__':
-    io = IO(5)
+    masted_counts = MastedShipsCounts(3,2,1,0)
+    io = IO(masted_counts,5)
     try:
-        asyncio.run(io.run())
+        asyncio.run(io.test_run())
     except KeyboardInterrupt:
         io.stop()
