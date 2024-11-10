@@ -4,13 +4,9 @@ from typing import Optional
 from domain.field import Field
 
 class InActions(enum.StrEnum):
-    SelectShots = "SelectShots"
-    HoverShots = "HoverShots"
-
-    SelectShips = "SelectShips"
-    HoverShips = "HoverShips"
-
-    FinishedPlacing = "FinishedPlacing"
+    Select = "Select"
+    Hover = "Hover"
+    Confirm = "Confirm"
 
 class OutActions(enum.StrEnum):
     UnknownShots = "UnknownShots"

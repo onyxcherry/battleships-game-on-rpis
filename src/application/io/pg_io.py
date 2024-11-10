@@ -73,12 +73,12 @@ class IO:
         if event.key == pg.K_SPACE:
             if self._shooting:
                 self._try_put_in_queue(
-                    ActionEvent(InActions.SelectShots, self._shots_marker_pos, DisplayBoard.Shots)
+                    ActionEvent(InActions.Select, self._shots_marker_pos, DisplayBoard.Shots)
                     )
                 return True
             elif self._place_ships:
                 self._try_put_in_queue(
-                    ActionEvent(InActions.SelectShips, self._ships_marker_pos, DisplayBoard.Ships)
+                    ActionEvent(InActions.Select, self._ships_marker_pos, DisplayBoard.Ships)
                     )
                 return True
 
@@ -109,7 +109,7 @@ class IO:
             
             if new_marker_pos != self._shots_marker_pos:
                 self._try_put_in_queue(
-                    ActionEvent(InActions.HoverShots, new_marker_pos, DisplayBoard.Shots)
+                    ActionEvent(InActions.Hover, new_marker_pos, DisplayBoard.Shots)
                 )
         
         elif self._place_ships:
@@ -122,7 +122,7 @@ class IO:
 
             if new_marker_pos != self._ships_marker_pos:
                 self._try_put_in_queue(
-                    ActionEvent(InActions.HoverShips, new_marker_pos, DisplayBoard.Ships)
+                    ActionEvent(InActions.Hover, new_marker_pos, DisplayBoard.Ships)
                 )
         
         return True
@@ -137,7 +137,7 @@ class IO:
                 if tile == self._shots_marker_pos:
                     return
                 self._try_put_in_queue(
-                    ActionEvent(InActions.HoverShots, tile, DisplayBoard.Shots)
+                    ActionEvent(InActions.Hover, tile)
                 )
             elif self._place_ships:
                 tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
@@ -146,7 +146,7 @@ class IO:
                 if tile == self._ships_marker_pos:
                     return
                 self._try_put_in_queue(
-                    ActionEvent(InActions.HoverShips, tile, DisplayBoard.Ships)
+                    ActionEvent(InActions.Hover, tile)
                 )
         
         elif event.type == pg.MOUSEBUTTONDOWN:
@@ -156,20 +156,20 @@ class IO:
                 if tile == (-1, -1):
                     return
                 self._try_put_in_queue(
-                    ActionEvent(InActions.SelectShots, tile, DisplayBoard.Shots)
+                    ActionEvent(InActions.Select, tile)
                 )
             elif self._place_ships:
                 tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
                 self._try_put_in_queue(
-                    ActionEvent(InActions.SelectShips, tile, DisplayBoard.Ships)
+                    ActionEvent(InActions.Select, tile)
                 )
         
         elif event.type == pg.KEYDOWN:
             if self._handle_pg_marker_keydown(event): return
             if event.key == pg.K_f:
-                self._try_put_in_queue(ActionEvent(InActions.FinishedPlacing))
+                self._try_put_in_queue(ActionEvent(InActions.Confirm))
 
     def _handle_output_event(self, event : ActionEvent) -> None:
         if event.action == OutActions.PlaceShips:

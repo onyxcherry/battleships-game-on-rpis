@@ -36,7 +36,7 @@ class Rpi_Input:
             max(0,min(self._board_size, self._shots_marker_pos[1] + direction[1])),
         )
 
-        self._input_queue.put(f"{InActions.HoverShots};{self._shots_marker_pos}")
+        self._input_queue.put(f"{InActions.Hover};{self._shots_marker_pos}")
 
     def run(self):
         self._up_button.when_pressed = self._marker_button_pressed

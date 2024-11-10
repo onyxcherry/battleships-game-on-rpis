@@ -59,12 +59,12 @@ class IO:
                 except TimeoutError:
                     continue
 
-                if event.action == InActions.HoverShips:
+                if event.action == InActions.Hover:
                     await self.put_out_action(
                         ActionEvent(OutActions.HoverShips, event.tile, DisplayBoard.Ships)
                         )
                 
-                elif event.action == InActions.SelectShips:
+                elif event.action == InActions.Select:
                     if event.field in ships_fields:
                         await self.put_out_action(
                             ActionEvent(OutActions.NoShip, event.tile, DisplayBoard.Ships)
@@ -76,7 +76,7 @@ class IO:
                         )
                         ships_fields.add(event.field)
 
-                elif event.action == InActions.FinishedPlacing:
+                elif event.action == InActions.Confirm:
                     try:
                         ships = ShipsBoard.build_ships_from_fields(ships_fields)
                         masted_ships = MastedShips.from_set(ships, self._masted_counts)
@@ -104,12 +104,12 @@ class IO:
                 except TimeoutError:
                     continue
 
-                if event.action == InActions.HoverShots:
+                if event.action == InActions.Hover:
                     await self.put_out_action(
                         ActionEvent(OutActions.HoverShots, event.tile, DisplayBoard.Shots)
                     )
                 
-                elif event.action == InActions.SelectShots:
+                elif event.action == InActions.Select:
                     break
 
         except asyncio.CancelledError:
