@@ -20,13 +20,15 @@ class LED_Matrix(ws.PixelStrip):
         self._num_rows = num_rows
 
     def matrixToLEDPos(self, pos : Tuple[int, int]) -> int:
+        pos = (self._num_cols - pos[0] - 1, pos[1]) # mirror X axis
         return  self._num_cols * pos[1] + (pos[1] % 2) * (self._num_cols - 1) \
             - pos[0] * (2 * (pos[1] % 2) - 1)
     
     def LEDToMatixPos(self, n : int) -> Tuple[int, int]:
         row = n // self._num_cols
         off = n % self._num_cols
-        return (off * (1 - (row % 2)) + (self._num_cols - off - 1) * (row % 2), row)
+        pos = (off * (1 - (row % 2)) + (self._num_cols - off - 1) * (row % 2), row)
+        return (self._num_cols - pos[0] - 1, pos[1]) # mirror X axis
     
     def setMatrixPixelColor(self, pos : Tuple[int, int], color : ws.Color):
         self[self.matrixToLEDPos(pos)] = color

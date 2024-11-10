@@ -116,11 +116,15 @@ class IO:
             await self.put_out_action(ActionEvent(OutActions.OpponentTurn))
             return None
         
-        if not event is None:
-            await self.put_out_action(
-                ActionEvent(OutActions.UnknownShots, event.tile, DisplayBoard.Shots)
-                )
+        if event is None:
+            await self.put_out_action(ActionEvent(OutActions.OpponentTurn))
+            return None
+        
         await self.put_out_action(ActionEvent(OutActions.OpponentTurn))
+        await self.put_out_action(
+            ActionEvent(OutActions.UnknownShots, event.tile, DisplayBoard.Shots)
+            )
+        
         return event.field
     
     async def player_attack_result(self, result : AttackResult) -> None:
@@ -157,8 +161,8 @@ class IO:
             self._io_t = Thread(target=self._io.run)
             self._io_t.start()
         else:
-            self._display = Display(self._out_queue.sync_q, self._stop)
-            self._input = Rpi_Input(self._in_queue.sync_q, self._stop)
+            self._display = Display(self._board_size, self._out_queue.sync_q, self._stop)
+            self._input = Rpi_Input(self._board_size, self._in_queue.sync_q, self._stop)
             self._in_t = Thread(target=self._input.run)
             self._out_t = Thread(target=self._display.run)
             self._in_t.start()

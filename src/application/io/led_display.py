@@ -1,10 +1,11 @@
 from application.io.led_matrix import LED_Matrix
 from rpi_ws281x import Color, RGBW
-import queue
+import janus
 from enum import Enum
 from typing import List, Tuple, Dict
-from application.io.actions import OutActions
+from application.io.actions import OutActions, ActionEvent, DisplayBoard
 from threading import Event
+from time import sleep
 
 class Display:
 
@@ -13,21 +14,24 @@ class Display:
         MARKER_AXIS = 2
 
         WATER = 3
-        WAVING_MAST = 4
-        AROUND_DESTROYED = 5
+        AROUND_DESTROYED = 4
 
-        BOARD_BORDER = 6
+        BOARD_BORDER = 5
     
-    def __init__(self, output_queue : queue.Queue, stop_running : Event):
+    def __init__(self, board_size : int, output_queue : janus.SyncQueue[ActionEvent], stop_running : Event):
+        self._board_size = board_size
         self._out_queue = output_queue
         self._stop_running = stop_running
 
         self._shooting = False
+        self._place_ships = False
 
         self._shots_marker_pos = (0, 0)
-        self._ships_marker_pos = (-1, -1)
+        self._ships_marker_pos = (0, 0)
 
         self._color_map = {
+            OutActions.UnknownShots : Color(127,0,127),
+
             OutActions.HitShips : Color(127,0,0),
             OutActions.HitShots : Color(127,0,0),
 
@@ -37,8 +41,9 @@ class Display:
             OutActions.MissShips : Color(130,66,214),
             OutActions.MissShots : Color(130,66,214),
 
-            Display.ExtraColors.WATER : Color(8,28,31),
-            Display.ExtraColors.WAVING_MAST : Color(3,163,0),
+            Display.ExtraColors.WATER : Color(4,15,15),
+            OutActions.NoShip : Color(4,15,15),
+            OutActions.Ship : Color(3,163,0),
 
             Display.ExtraColors.AROUND_DESTROYED : Color(76,87,245),
 
@@ -48,51 +53,54 @@ class Display:
             Display.ExtraColors.BOARD_BORDER : Color(0,0,255)
         }
 
-        self._shots_led_board : LED_Board = LED_Board(18, self._color_map)
-        self._ships_led_board : LED_Board = LED_Board(13, self._color_map)
+        self._shots_led_board : LED_Board = LED_Board(18, self._color_map, self._board_size)
+        sleep(0.5)
+        self._ships_led_board : LED_Board = LED_Board(13, self._color_map, self._board_size)
     
-    def _handle_output_event(self, event) -> None:
-        splitted = event.split(';')
+    def _handle_output_event(self, event : ActionEvent) -> None:
+        if event.action == OutActions.PlaceShips:
+            self._place_ships = True
+            return
+        
+        if event.action == OutActions.FinishedPlacing:
+            self._place_ships = False
+            self._ships_marker_pos = (-1,-1)
+            return
 
-        action = OutActions[splitted[0]]
-
-        if action == OutActions.PlayerTurn:
+        if event.action == OutActions.PlayerTurn:
             self._shooting = True
             return
         
-        if action == OutActions.OpponentTurn:
+        if event.action == OutActions.OpponentTurn:
             self._shooting = False
             return
 
-        if action == OutActions.HoverShots:
-            pos : Tuple[int, int] = eval(splitted[1])
-            self._shots_marker_pos = pos
+        if event.action == OutActions.HoverShots:
+            self._shots_marker_pos = event.tile
             return
 
-        if action == OutActions.HoverShips:
-            pos : Tuple[int, int] = eval(splitted[1])
-            self._ships_marker_pos = pos
+        if event.action == OutActions.HoverShips:
+            self._ships_marker_pos = event.tile
             return
 
-        if not action in self._color_map:
+        if not event.action in self._color_map:
             return
         
-        pos : Tuple[int, int] = eval(splitted[1])
-        color = self._color_map[action]
+        color = self._color_map[event.action]
 
-        if self._shooting:
-            self._shots_led_board.change_cell(pos, color)
-        else:
-            self._ships_led_board.change_cell(pos, color)
+        if event.board == DisplayBoard.Shots:
+            self._shots_led_board.change_cell(event.tile, color)
+        elif event.board == DisplayBoard.Ships:
+            self._ships_led_board.change_cell(event.tile, color)
     
     def run(self) -> None:
         while not self._stop_running.is_set():
             try:
                 event = self._out_queue.get(timeout=1)
                 self._handle_output_event(event)
-                self._ships_led_board.draw(self._ships_marker_pos)
-                self._shots_led_board.draw(self._shots_marker_pos)
-            except queue.Empty:
+                self._ships_led_board.draw(self._ships_marker_pos if not self._shooting else (-1, -1))
+                self._shots_led_board.draw(self._shots_marker_pos if self._shooting else (-1, -1))
+            except janus.SyncQueueEmpty:
                 pass
         self.clear()
     
@@ -101,11 +109,11 @@ class Display:
         self._shots_led_board.clear()
 
 class LED_Board:
-    def __init__(self, pin : int, color_map : Dict[OutActions | Display.ExtraColors, RGBW], size : Tuple[int,int] = (10, 10)):
+    def __init__(self, pin : int, color_map : Dict[OutActions | Display.ExtraColors, RGBW], size : int):
         self._color_map = color_map
         self._size = size
-        self._off = (int((16 - size[0]) // 2), int((16 - size[1]) // 2))
-        self._tiles : List[List[RGBW]]= [[color_map[Display.ExtraColors.WATER] for x in range(size[0])] for y in range(size[1])]
+        self._off = (int((16 - size) // 2), int((16 - size) // 2))
+        self._tiles : List[List[RGBW]]= [[color_map[Display.ExtraColors.WATER] for x in range(size)] for y in range(size)]
 
         channel = 0
         if pin in (13, 19, 41, 45, 53):
@@ -126,13 +134,13 @@ class LED_Board:
         self.clear()
 
     def _draw_border(self) -> None:
-        for x in range(self._size[0] + 2):
+        for x in range(self._size + 2):
             self._led_matrix.setMatrixPixelColor((x + self._off[0] - 1, self._off[1] - 1), self._color_map[Display.ExtraColors.BOARD_BORDER])
-            self._led_matrix.setMatrixPixelColor((x + self._off[0] - 1, self._off[1] + self._size[1]), self._color_map[Display.ExtraColors.BOARD_BORDER])
+            self._led_matrix.setMatrixPixelColor((x + self._off[0] - 1, self._off[1] + self._size), self._color_map[Display.ExtraColors.BOARD_BORDER])
 
-        for y in range(self._size[1] + 2):
+        for y in range(self._size + 2):
             self._led_matrix.setMatrixPixelColor((self._off[0] - 1, y + self._off[1] - 1), self._color_map[Display.ExtraColors.BOARD_BORDER])
-            self._led_matrix.setMatrixPixelColor((self._off[0] + self._size[0], y + self._off[1] - 1), self._color_map[Display.ExtraColors.BOARD_BORDER])
+            self._led_matrix.setMatrixPixelColor((self._off[0] + self._size, y + self._off[1] - 1), self._color_map[Display.ExtraColors.BOARD_BORDER])
     
     def _lerp(c1 : RGBW, c2 : RGBW, p : float) -> RGBW:
         return Color(
@@ -147,16 +155,16 @@ class LED_Board:
         self._tiles[pos[1]][pos[0]] = color
 
     def draw(self, marker : Tuple[int, int]) -> None:
-        for y in range(self._size[1]):
-            for x in range(self._size[0]):
+        for y in range(self._size):
+            for x in range(self._size):
                 draw_color : RGBW = self._tiles[y][x]
                 if marker != (-1, -1):
                     row_match = x == marker[0]
                     col_match = y == marker[1]
                     if row_match and col_match:
-                        draw_color = LED_Board._lerp(draw_color,self._color_map[Display.ExtraColors.MARKER_CENTER], 0.7)
+                        draw_color = LED_Board._lerp(draw_color,self._color_map[Display.ExtraColors.MARKER_CENTER], 0.1)
                     elif row_match or col_match:
-                        draw_color = LED_Board._lerp(draw_color,self._color_map[Display.ExtraColors.MARKER_AXIS], 0.7)
+                        draw_color = LED_Board._lerp(draw_color,self._color_map[Display.ExtraColors.MARKER_AXIS], 0.1)
                 self._led_matrix.setMatrixPixelColor((x + self._off[0], y + self._off[1]),draw_color)
         
         self._led_matrix.show()
