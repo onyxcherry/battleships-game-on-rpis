@@ -1,4 +1,7 @@
 import enum
+from pydantic.dataclasses import dataclass
+from typing import Optional
+from domain.field import Field
 
 class InActions(enum.StrEnum):
     SelectShots = "SelectShots"
@@ -33,9 +36,19 @@ class OutActions(enum.StrEnum):
     PlaceShips = "PlaceShips"
     FinishedPlacing = "FinishedPlacing"
 
-OUT_SHOTS_ACTIONS : set[OutActions] = {
-    OutActions.UnknownShots,
-    OutActions.MissShots,
-    OutActions.HitShots,
-    OutActions.DestroyedShots,
-}
+class DisplayBoard(enum.StrEnum):
+    Ships = "Ships"
+    Shots = "Shots"
+    Extra = "Extra"
+
+@dataclass(frozen=True)
+class ActionEvent:
+    action : InActions | OutActions
+    tile : Optional[tuple[int, int]] = None
+    board : Optional[DisplayBoard] = None
+
+    @property
+    def field(self) -> Optional[Field]:
+        if self.tile is None:
+            return None
+        return Field.fromTuple(self.tile)

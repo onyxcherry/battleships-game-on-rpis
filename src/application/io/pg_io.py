@@ -2,7 +2,7 @@ import pygame as pg
 import janus
 from enum import Enum
 from typing import List, Tuple, Dict
-from application.io.actions import InActions, OutActions, OUT_SHOTS_ACTIONS
+from application.io.actions import InActions, OutActions, ActionEvent, DisplayBoard
 from threading import Event as th_Event
 
 class IO:
@@ -23,7 +23,7 @@ class IO:
         AROUND_DESTROYED = 7
 
 
-    def __init__(self, board_size : int, input_queue : janus.SyncQueue[str], output_queue : janus.SyncQueue[str], stop_running : th_Event):
+    def __init__(self, board_size : int, input_queue : janus.SyncQueue[ActionEvent], output_queue : janus.SyncQueue[ActionEvent], stop_running : th_Event):
         self._board_size = board_size
         self._in_queue = input_queue
         self._out_queue = output_queue
@@ -63,19 +63,23 @@ class IO:
             IO.ExtraColors.MARKER_AXIS : pg.Color('springgreen')
         }
     
-    def _try_put_in_queue(self, action : InActions, tile : Tuple[int, int] = (0,0)) -> None:
+    def _try_put_in_queue(self, event : ActionEvent) -> None:
         try:
-            self._in_queue.put_nowait(f"{action.value};{tile}")
+            self._in_queue.put_nowait(event)
         except janus.SyncQueueFull:
             print("out queue full!")
     
     def _handle_pg_marker_keydown(self, event : pg.event.Event) -> bool:
         if event.key == pg.K_SPACE:
             if self._shooting:
-                self._try_put_in_queue(InActions.SelectShots, self._shots_marker_pos)
+                self._try_put_in_queue(
+                    ActionEvent(InActions.SelectShots, self._shots_marker_pos, DisplayBoard.Shots)
+                    )
                 return True
             elif self._place_ships:
-                self._try_put_in_queue(InActions.SelectShips, self._ships_marker_pos)
+                self._try_put_in_queue(
+                    ActionEvent(InActions.SelectShips, self._ships_marker_pos, DisplayBoard.Ships)
+                    )
                 return True
 
 
@@ -104,7 +108,9 @@ class IO:
                 max(0, min(self._board_size-1, new_marker_pos[1])))
             
             if new_marker_pos != self._shots_marker_pos:
-                self._try_put_in_queue(InActions.HoverShots, new_marker_pos)
+                self._try_put_in_queue(
+                    ActionEvent(InActions.HoverShots, new_marker_pos, DisplayBoard.Shots)
+                )
         
         elif self._place_ships:
             
@@ -115,7 +121,9 @@ class IO:
                 max(0, min(self._board_size-1, new_marker_pos[1])))
 
             if new_marker_pos != self._ships_marker_pos:
-                self._try_put_in_queue(InActions.HoverShips, new_marker_pos)
+                self._try_put_in_queue(
+                    ActionEvent(InActions.HoverShips, new_marker_pos, DisplayBoard.Ships)
+                )
         
         return True
     
@@ -128,14 +136,18 @@ class IO:
                     return
                 if tile == self._shots_marker_pos:
                     return
-                self._try_put_in_queue(InActions.HoverShots, tile)
+                self._try_put_in_queue(
+                    ActionEvent(InActions.HoverShots, tile, DisplayBoard.Shots)
+                )
             elif self._place_ships:
                 tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
                 if tile == self._ships_marker_pos:
                     return
-                self._try_put_in_queue(InActions.HoverShips, tile)
+                self._try_put_in_queue(
+                    ActionEvent(InActions.HoverShips, tile, DisplayBoard.Ships)
+                )
         
         elif event.type == pg.MOUSEBUTTONDOWN:
             pos=event.pos
@@ -143,62 +155,57 @@ class IO:
                 tile : Tuple[int,int] = self._shots_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
-                self._try_put_in_queue(InActions.SelectShots, tile)
+                self._try_put_in_queue(
+                    ActionEvent(InActions.SelectShots, tile, DisplayBoard.Shots)
+                )
             elif self._place_ships:
                 tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
-                self._try_put_in_queue(InActions.SelectShips, tile)
+                self._try_put_in_queue(
+                    ActionEvent(InActions.SelectShips, tile, DisplayBoard.Ships)
+                )
         
         elif event.type == pg.KEYDOWN:
             if self._handle_pg_marker_keydown(event): return
             if event.key == pg.K_f:
-                self._try_put_in_queue(InActions.FinishedPlacing)
+                self._try_put_in_queue(ActionEvent(InActions.FinishedPlacing))
 
-    def _handle_output_event(self, event : str) -> None:
-        splitted = event.split(';')
-
-        action = OutActions[splitted[0]]
-
-        if action == OutActions.PlaceShips:
+    def _handle_output_event(self, event : ActionEvent) -> None:
+        if event.action == OutActions.PlaceShips:
             self._place_ships = True
             return
         
-        if action == OutActions.FinishedPlacing:
+        if event.action == OutActions.FinishedPlacing:
             self._place_ships = False
             self._ships_marker_pos = (-1,-1)
             return
         
-        if action == OutActions.PlayerTurn:
+        if event.action == OutActions.PlayerTurn:
             self._shooting = True
             return
         
-        if action == OutActions.OpponentTurn:
+        if event.action == OutActions.OpponentTurn:
             self._shooting = False
             return
-        
-        print(event)
 
-        if action == OutActions.HoverShots:
-            pos : Tuple[int, int] = eval(splitted[1])
-            self._shots_marker_pos = pos
+        if event.action == OutActions.HoverShots:
+            self._shots_marker_pos = event.tile
             return
 
-        if action == OutActions.HoverShips:
-            pos : Tuple[int, int] = eval(splitted[1])
-            self._ships_marker_pos = pos
+        if event.action == OutActions.HoverShips:
+            self._ships_marker_pos = event.tile
             return
 
-        if not action in self._color_map:
+        if not event.action in self._color_map:
             return
         
-        pos : Tuple[int, int] = eval(splitted[1])
-        color = self._color_map[action]
+        color = self._color_map[event.action]
 
-        if action in OUT_SHOTS_ACTIONS:
-            self._shots_pg_board.change_cell(pos, color)
-        else:
-            self._ships_pg_board.change_cell(pos, color)
+        if event.board == DisplayBoard.Shots:
+            self._shots_pg_board.change_cell(event.tile, color)
+        elif event.board == DisplayBoard.Ships:
+            self._ships_pg_board.change_cell(event.tile, color)
 
 
     def _draw(self) -> None:
