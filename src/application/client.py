@@ -20,6 +20,7 @@ from domain.ships import MastedShips, Ship
 from websockets import ConnectionClosedOK
 from websockets.asyncio.client import connect
 from domain.client.game import Game
+from application.io.io import IO
 from typing import Optional
 
 server_address = "ws://localhost:4200"
@@ -44,19 +45,23 @@ async def send(websocket, data: Serializable) -> None:
     logger.debug(f"Sent: {formatted}")
 
 
-async def place_ships(game: Game):
+async def place_ships(game: Game, game_io: IO):
     # game.masted_ships_counts
-    masted_ships = MastedShips(
-        single={Ship({Field("A1")}), Ship({Field("H10")}), Ship({Field("J7")})},
-        two={Ship({Field("A3"), Field("A4")})},
-        three=set(),
-        four=set(),
-    )
-    game.place_ships(masted_ships)
-    await asyncio.sleep(0.1)
+    # masted_ships = MastedShips(
+    #     single={Ship({Field("A1")}), Ship({Field("H10")}), Ship({Field("J7")})},
+    #     two={Ship({Field("A3"), Field("A4")})},
+    #     three=set(),
+    #     four=set(),
+    # )
+    # game.place_ships(masted_ships)
+    # await asyncio.sleep(0.1)
+    
+    masted_shpis = await game_io.get_masted_ships()
+    game.place_ships(masted_shpis)
 
 
-async def read_input() -> str:
+async def read_input() -> Field:
+    print("Enter next field to attack:")
     loop = asyncio.get_event_loop()
     fut = loop.create_future()
 
@@ -66,18 +71,28 @@ async def read_input() -> str:
     loop.add_reader(sys.stdin, on_input)
 
     # Wait for user input
-    result = await fut
+    try:
+        result = await fut
+    except asyncio.CancelledError:
+        loop.remove_reader(sys.stdin)
+        return None
 
     loop.remove_reader(sys.stdin)
-    return result
+    return Field(result)
 
 
-async def get_next_attack() -> Field:
-    print("Enter next field to attack:")
-    input_task = asyncio.create_task(read_input())
-    await input_task
-    field = input_task.result()
-    return Field(field)
+async def get_next_attack(game_io: IO) -> Field:
+    
+    # allow attacking by using either IO class or stdin
+    # done, pending = await asyncio.wait([
+    #     asyncio.create_task(read_input()),
+    #     asyncio.create_task(game_io.get_next_attack())
+    # ], return_when=asyncio.FIRST_COMPLETED)
+
+    # field = done.pop().result()
+    # pending.pop().cancel()
+    field = await game_io.get_next_attack()
+    return field
 
 
 async def play():
@@ -105,8 +120,13 @@ async def play():
             masted_ships=game_info.masted_ships, board_size=game_info.board_size
         )
 
+        game_io = IO(
+            masted_ships=game_info.masted_ships, board_size=game_info.board_size
+        )
+        game_io.start()
+
         if placing_ships_task is None:
-            placing_ships_task = asyncio.create_task(place_ships(game))
+            placing_ships_task = asyncio.create_task(place_ships(game, game_io))
 
         while True:
             try:
@@ -144,7 +164,7 @@ async def play():
         while True:
             if my_turn_to_attack:
                 if next_attack_task is None:
-                    next_attack_task = asyncio.create_task(get_next_attack())
+                    next_attack_task = asyncio.create_task(get_next_attack(game_io))
                     continue
                 elif not next_attack_task.done():
                     await asyncio.sleep(0.1)
@@ -154,7 +174,7 @@ async def play():
                 message = game.attack(field_to_attack)
                 await send(ws, message)
                 print(game.show_state())
-                next_attack_task = asyncio.create_task(get_next_attack())
+                next_attack_task = asyncio.create_task(get_next_attack(game_io))
                 my_turn_to_attack = False
 
             try:
@@ -173,8 +193,11 @@ async def play():
                     print(game.show_state())
 
                     if isinstance(result, GameMessage):
+                        await game_io.opponent_attack_result(result.data)
                         await send(ws, result)
                         my_turn_to_attack = True
+                    else:
+                        await game_io.player_attack_result(message.data)
                 else:
                     current_game_info = message
 
