@@ -201,11 +201,43 @@ async def play():
                 else:
                     current_game_info = message
 
+            if current_game_info.status == GameStatus.Ended or game.all_ships_wrecked:
+                next_attack_task.cancel()
+                break
+
+        if game.all_ships_wrecked:
+            client_info = ClientInfo(
+                uniqid=uuid4(),
+                connected=True,
+                ships_placed=game.ships_placed,
+                ready=game.ready,
+                all_ships_wrecked=game.all_ships_wrecked,
+            )
+            await send(ws, client_info)
+
+        while True:
+            try:
+                async with asyncio.timeout(0.1):
+                    data = await receive(ws)
+            except TimeoutError:
+                pass
+            except ConnectionClosedOK:
+                pass
+            else:
+                game_info = parse_game_info(data)
+                current_game_info = game_info
+
             if current_game_info.status == GameStatus.Ended:
-                # TODO
-                pass
-            elif current_game_info.status == GameStatus.InBadState:
-                pass
+                logger.info("Game was ended")
+                if (
+                    current_game_info.extra is not None
+                    and current_game_info.extra.you_won
+                ):
+                    logger.info("You've won! Congratulations!")
+                await ws.close()
+                break
+
+        # what after game's end?
 
 
 async def main():
