@@ -52,3 +52,11 @@ class AttackRequest:
     type_: Literal["AttackRequest"] = PydField(
         default="AttackRequest", init=False, repr=False
     )
+
+
+@dataclass(frozen=True, config=dataclass_config)
+class PossibleAttack:
+    field: BattleshipFieldDeser
+    type_: Literal["PossibleAttack"] = PydField(
+        default="PossibleAttack", init=False, repr=False
+    )

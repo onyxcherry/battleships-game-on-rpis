@@ -1,4 +1,5 @@
 import dataclasses
+from typing import Optional
 from domain.attacks import AttackResultStatus, UnknownStatus
 from domain.field import Field
 from domain.ships import Ship, MastedShips, ShipStatus
@@ -22,6 +23,7 @@ class ShipsBoard:
         self._ships: dict[Field, Ship] = {}
         self._ships_and_coastal_zones: set[Field] = set()
         self._opponent_missed: set[Field] = set()
+        self._opponent_possible_attack: Optional[Field] = None
 
     @property
     def ships_floating_count(self) -> int:
@@ -57,12 +59,16 @@ class ShipsBoard:
             self.add_ship(ship)
 
     def process_attack(self, field: Field) -> AttackResultStatus:
+        self._opponent_possible_attack = None
         if field not in self._ships:
             self._opponent_missed.add(field)
             return AttackResultStatus.Missed
         ship = self._ships[field]
         result = ship.attack(field)
         return result
+
+    def mark_possible_attack(self, field: Field) -> None:
+        self._opponent_possible_attack = field
 
     def represent_graphically(self, size: int) -> str:
         floating_fields = set()
@@ -83,6 +89,7 @@ class ShipsBoard:
                 missed=missed,
             ),
             size,
+            self._opponent_possible_attack,
         )
         drawn_board = draw_board(board)
         return drawn_board
@@ -210,6 +217,7 @@ class ShotsBoard:
 def create_board(
     ships_fields: ShipsFieldsByType,
     size: int = 10,
+    opponent_looking: Optional[Field] = None,
 ) -> list[list[str]]:
     space = "\N{EM SPACE}"
     full_square = "\N{BLACK SQUARE}"
@@ -217,6 +225,7 @@ def create_board(
     edged = "\N{BALLOT BOX}"
     unknown = "?"
     missed = "\N{MULTIPLICATION SIGN}"
+    eye = "\N{EYE}"
 
     matrix = [[space] * size for _ in range(size)]
     for floating_field in ships_fields.floating:
@@ -234,6 +243,9 @@ def create_board(
     for unknown_status_field in ships_fields.unknown_status:
         y, x = unknown_status_field.vector_from_zeros
         matrix[y][x] = unknown
+    if opponent_looking is not None:
+        y, x = opponent_looking.vector_from_zeros
+        matrix[y][x] = eye
     return matrix
 
 
