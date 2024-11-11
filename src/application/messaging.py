@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import enum
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, TypeAlias
 from domain.ships import MastedShipsCounts
 from pydantic.dataclasses import dataclass
 from domain.attacks import AttackRequest, AttackResult
@@ -11,8 +11,6 @@ from pydantic import UUID4, Field as PydField
 from pydantic import TypeAdapter, RootModel, ConfigDict
 
 dataclass_config = ConfigDict(populate_by_name=True)
-
-type GameMessageOrInfo = GameMessage | GameInfo
 
 
 class GameStatus(enum.StrEnum):
@@ -86,6 +84,8 @@ class GameMessage(Serializable):
 
     def stringify(self) -> str:
         return json.dumps(self.serialize())
+    
+GameMessageOrInfo: TypeAlias = GameMessage | GameInfo
 
 
 def decode_json_message(data: Any) -> dict:

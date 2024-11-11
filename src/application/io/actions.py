@@ -4,13 +4,9 @@ from typing import Optional
 from domain.field import Field
 
 class InActions(enum.StrEnum):
-    SelectShots = "SelectShots"
-    HoverShots = "HoverShots"
-
-    SelectShips = "SelectShips"
-    HoverShips = "HoverShips"
-
-    FinishedPlacing = "FinishedPlacing"
+    Select = "Select"
+    Hover = "Hover"
+    Confirm = "Confirm"
 
 class OutActions(enum.StrEnum):
     UnknownShots = "UnknownShots"
@@ -36,9 +32,24 @@ class OutActions(enum.StrEnum):
     PlaceShips = "PlaceShips"
     FinishedPlacing = "FinishedPlacing"
 
+class InfoActions(enum.StrEnum):
+    PlayerConnected = "PlayerConnected"
+    OpponentConnected = "OpponentConnected"
+    
+    PlayerDisconnected = "PlayerDisconnected"
+    OpponentDisconnected = "OpponentDisconnected"
+
+    PlayerReady = "PlayerReady"
+    OpponentReady = "OpponentReady"
+
+    PlayerWon = "PlayerWon"
+    OpponentWon = "OpponentWon"
+
 class DisplayBoard(enum.StrEnum):
     Ships = "Ships"
     Shots = "Shots"
+    ShipsBorder = "ShipsBorder"
+    ShotsBorder = "ShotsBorder"
     Extra = "Extra"
 
 @dataclass(frozen=True)
