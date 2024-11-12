@@ -7,7 +7,7 @@ from application.io.actions import InActions, OutActions, ActionEvent, DisplayBo
 from domain.field import Field
 from domain.boards import ShipsBoard
 from domain.ships import MastedShips, MastedShipsCounts
-from domain.attacks import AttackResult, AttackResultStatus
+from domain.attacks import AttackResult, AttackResultStatus, PossibleAttack
 
 try:   # distinguish pc and rpi by presence of pygame
     from application.io.pg_io import IO as pg_IO
@@ -152,6 +152,9 @@ class IO:
         tile = (x,y)
 
         await self.put_out_action(ActionEvent(action, tile, DisplayBoard.Ships))
+    
+    async def opponent_possible_attack(self, possible_atack: PossibleAttack) -> None:
+        pass
     
     def start(self) -> None:
         self._in_queue = janus.Queue()

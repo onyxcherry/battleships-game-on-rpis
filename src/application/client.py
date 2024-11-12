@@ -13,6 +13,9 @@ from application.messaging import (
     parse_game_info,
     GameMessage,
     parse_game_message_or_info,
+    AttackRequest,
+    AttackResult,
+    PossibleAttack
 )
 from config import get_logger
 from domain.field import Field
@@ -174,7 +177,9 @@ async def play():
                 pass
             else:
                 message = parse_game_message_or_info(data)
-                if isinstance(message, GameMessage):
+                if not isinstance(message, GameMessage):
+                    current_game_info = message
+                else:
                     try:
                         result = game.handle_message(message)
                     except Exception as ex:
@@ -183,13 +188,18 @@ async def play():
                     print(game.show_state())
 
                     if isinstance(result, GameMessage):
-                        await game_io.opponent_attack_result(result.data)
                         await send(ws, result)
                         my_turn_to_attack = True
-                    else:
-                        await game_io.player_attack_result(message.data)
-                else:
-                    current_game_info = message
+
+                    match message.type_:
+                        case AttackRequest.type_:
+                            await game_io.player_attack_result(message.data)
+                        case AttackResult.type_:
+                            await game_io.opponent_attack_result(result.data)
+                        case PossibleAttack.type_:
+                            await game_io.opponent_possible_attack(message.data)
+                        case _:
+                            raise ValueError()
 
             if current_game_info.status == GameStatus.Ended:
                 # TODO
