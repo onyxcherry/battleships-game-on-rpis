@@ -180,6 +180,9 @@ class IO:
 
         self.clear()
         print(" IO finished")
+    
+    def has_finished(self) -> bool:
+        return self._stop.is_set()
 
     async def test_run(self) -> None:
 
