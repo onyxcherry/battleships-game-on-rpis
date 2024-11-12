@@ -24,7 +24,7 @@ connected_clients: list[Optional[ServerConnection]] = [None, None]
 client_infos: list[Optional[ClientInfo]] = [None, None]
 logger = get_logger(__name__)
 
-masted_ships_counts = MastedShipsCounts(single=4, two=3, three=2, four=1)
+masted_ships_counts = MastedShipsCounts(single=1, two=0, three=0, four=0)
 board_size = 10
 
 

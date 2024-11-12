@@ -92,40 +92,35 @@ class IO:
         await self.put_out_action(ActionEvent(OutActions.FinishedPlacing))
         return masted_ships
     
-    async def get_next_attack(self) -> Optional[Field]:
+    async def get_possible_or_real_attack(self) -> Optional[tuple[Field, bool]]:
         await self.put_out_action(ActionEvent(OutActions.PlayerTurn))
 
-        event : ActionEvent = None
-        try:
-            while not self._stop.is_set():
-                try:
-                    async with asyncio.timeout(0.1):
-                        event = await self.get_in_action()
-                except TimeoutError:
-                    continue
+        ret : Optional[tuple[Field, bool]] = None
+        event : Optional[ActionEvent] = None
 
-                if event.action == InActions.Hover:
-                    await self.put_out_action(
-                        ActionEvent(OutActions.HoverShots, event.tile, DisplayBoard.Shots)
-                    )
-                
-                elif event.action == InActions.Select:
-                    break
+        while not self._stop.is_set():
+            try:
+                async with asyncio.timeout(0.1):
+                    event = await self.get_in_action()
+            except TimeoutError:
+                continue
 
-        except asyncio.CancelledError:
-            await self.put_out_action(ActionEvent(OutActions.OpponentTurn))
-            return None
+            if event.action == InActions.Hover:
+                await self.put_out_action(
+                    ActionEvent(OutActions.HoverShots, event.tile, DisplayBoard.Shots)
+                )
+                ret = event.field, False
+                break
+            
+            if event.action == InActions.Select:
+                await self.put_out_action(
+                    ActionEvent(OutActions.UnknownShots, event.tile, DisplayBoard.Shots)
+                )
+                await self.put_out_action(ActionEvent(OutActions.OpponentTurn))
+                ret = event.field, True
+                break
         
-        if event is None:
-            await self.put_out_action(ActionEvent(OutActions.OpponentTurn))
-            return None
-        
-        await self.put_out_action(ActionEvent(OutActions.OpponentTurn))
-        await self.put_out_action(
-            ActionEvent(OutActions.UnknownShots, event.tile, DisplayBoard.Shots)
-            )
-        
-        return event.field
+        return ret
     
     async def player_attack_result(self, result : AttackResult) -> None:
         action : OutActions = {
@@ -154,7 +149,10 @@ class IO:
         await self.put_out_action(ActionEvent(action, tile, DisplayBoard.Ships))
     
     async def opponent_possible_attack(self, possible_atack: PossibleAttack) -> None:
-        pass
+        y, x = possible_atack.field.vector_from_zeros
+        tile = (x,y)
+
+        await self.put_out_action(ActionEvent(OutActions.HoverShips,tile, DisplayBoard.Ships))
     
     def start(self) -> None:
         self._in_queue = janus.Queue()
@@ -196,7 +194,7 @@ class IO:
                 break
             await asyncio.sleep(0.1)
         
-        print(await self.get_next_attack())
+        print(await self.get_possible_or_real_attack())
         await asyncio.sleep(4)
         
         self.stop()
