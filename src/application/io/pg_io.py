@@ -37,7 +37,10 @@ class IO:
         self._shooting = False
 
         self._ships_marker_pos : Tuple[int, int] = (0, 0)
-        self._shots_marker_pos : Tuple[int, int] = (0, 0)
+        self._shots_marker_pos : Tuple[int, int] = (-1, -1)
+
+        self._ships_internal_marker_pos : Tuple[int, int] = (-1,-1)
+        self._shots_internal_marker_pos : Tuple[int, int] = (-1,-1)
 
         self._color_map = {
             OutActions.UnknownShots : pg.Color('chartreuse4'),
@@ -102,7 +105,7 @@ class IO:
         
         if self._shooting:
             new_marker_pos = (self._shots_marker_pos[0] + marker_diff[0], 
-                                self._shots_marker_pos[0] + marker_diff[1])
+                                self._shots_marker_pos[1] + marker_diff[1])
             new_marker_pos = (
                 max(0, min(self._board_size-1, new_marker_pos[0])),
                 max(0, min(self._board_size-1, new_marker_pos[1])))
@@ -134,8 +137,9 @@ class IO:
                 tile : Tuple[int,int] = self._shots_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
-                if tile == self._shots_marker_pos:
+                if tile == self._shots_internal_marker_pos:
                     return
+                self._shots_internal_marker_pos = tile
                 self._try_put_in_queue(
                     ActionEvent(InActions.Hover, tile)
                 )
@@ -143,8 +147,9 @@ class IO:
                 tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
-                if tile == self._ships_marker_pos:
+                if tile == self._ships_internal_marker_pos:
                     return
+                self._ships_internal_marker_pos = tile
                 self._try_put_in_queue(
                     ActionEvent(InActions.Hover, tile)
                 )
@@ -209,8 +214,8 @@ class IO:
 
 
     def _draw(self) -> None:
-        self._shots_pg_board.draw(self._shots_marker_pos if self._shooting else (-1, -1))
-        self._ships_pg_board.draw(self._ships_marker_pos if not self._shooting else (-1, -1))
+        self._shots_pg_board.draw(self._shots_marker_pos if self._shooting else (-1,-1))
+        self._ships_pg_board.draw(self._ships_marker_pos)
     
     def _game_loop(self) -> None:
         while not self._stop_running.is_set():

@@ -1,11 +1,12 @@
 from typing import Optional
 from uuid import uuid4
 from application.messaging import GameMessage
-from domain.attacks import AttackRequest, AttackResult
+from domain.attacks import AttackRequest, AttackResult, PossibleAttack
 from domain.field import Field
 from domain.boards import ShipsBoard, ShotsBoard
 from domain.ships import MastedShips, MastedShipsCounts
 from dataclasses import dataclass
+
 
 @dataclass(frozen=True)
 class ClientStatus:
@@ -60,6 +61,9 @@ class Game:
         elif isinstance(att_res := message.data, AttackResult):
             self._attacks_board.add_attack(att_res.field, att_res.status)
             return None
+        elif isinstance(poss_att := message.data, PossibleAttack):
+            self._ships_board.mark_possible_attack(poss_att.field)
+            return None
         else:
             raise NotImplementedError()
 
@@ -69,3 +73,9 @@ class Game:
         my_attacks = self._attacks_board.represent_graphically(self._board_size)
         state = [f"{space*10}SHIPS", my_ships, my_attacks, f"{space*9}ATTACKS"]
         return "\n".join(state)
+
+    @staticmethod
+    def possible_attack_of(field: Field) -> GameMessage:
+        possible_attack = PossibleAttack(field)
+        message = GameMessage(uniqid=uuid4(), data=possible_attack)
+        return message

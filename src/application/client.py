@@ -13,6 +13,9 @@ from application.messaging import (
     parse_game_info,
     GameMessage,
     parse_game_message_or_info,
+    AttackRequest,
+    AttackResult,
+    PossibleAttack
 )
 from config import get_logger
 from domain.field import Field
@@ -23,7 +26,7 @@ from domain.client.game import Game
 from application.io.io import IO
 from typing import Optional
 
-server_address = "ws://mm-pi.lan:4200"
+server_address = "ws://localhost:4200"
 
 
 logger = get_logger(__name__)
@@ -71,7 +74,8 @@ async def read_input() -> Field:
     return Field(result)
 
 
-async def get_next_attack(game_io: IO) -> Field:
+async def get_possible_or_real_attack(game_io: IO) -> Optional[tuple[Field, bool]]:
+    attack_is_real = True
     
     # allow attacking by using either IO class or stdin
     # done, pending = await asyncio.wait([
@@ -79,10 +83,10 @@ async def get_next_attack(game_io: IO) -> Field:
     #     asyncio.create_task(game_io.get_next_attack())
     # ], return_when=asyncio.FIRST_COMPLETED)
 
-    # field = done.pop().result()
+    # field_to_attack = done.pop().result()
     # pending.pop().cancel()
-    field = await game_io.get_next_attack()
-    return field
+    field_to_attack, attack_is_real = await game_io.get_possible_or_real_attack()
+    return field_to_attack, attack_is_real
 
 
 async def play():
@@ -95,7 +99,7 @@ async def play():
     )
     current_game_info: Optional[GameInfo] = None
     placing_ships_task: Optional[asyncio.Task] = None
-    next_attack_task: Optional[asyncio.Task] = None
+    next_attack_or_possible_attack_task: Optional[asyncio.Task] = None
 
     placed_ships_info_sent: bool = False
 
@@ -153,18 +157,25 @@ async def play():
         )
         while True:
             if my_turn_to_attack:
-                if next_attack_task is None:
-                    next_attack_task = asyncio.create_task(get_next_attack(game_io))
+                if next_attack_or_possible_attack_task is None:
+                    next_attack_or_possible_attack_task = asyncio.create_task(get_possible_or_real_attack(game_io))
                     continue
-                elif not next_attack_task.done():
-                    await asyncio.sleep(0.1)
+                elif not next_attack_or_possible_attack_task.done():
+                    try:
+                        await asyncio.wait_for(asyncio.shield(next_attack_or_possible_attack_task), timeout=0.1)
+                    except TimeoutError:
+                        continue
+
+                field_to_attack, attack_is_real = next_attack_or_possible_attack_task.result()
+                next_attack_or_possible_attack_task = None
+                if not attack_is_real:
+                    message = Game.possible_attack_of(field_to_attack)
+                    await send(ws, message)
                     continue
 
-                field_to_attack = next_attack_task.result()
                 message = game.attack(field_to_attack)
                 await send(ws, message)
                 print(game.show_state())
-                next_attack_task = asyncio.create_task(get_next_attack(game_io))
                 my_turn_to_attack = False
 
             try:
@@ -174,7 +185,9 @@ async def play():
                 pass
             else:
                 message = parse_game_message_or_info(data)
-                if isinstance(message, GameMessage):
+                if not isinstance(message, GameMessage):
+                    current_game_info = message
+                else:
                     try:
                         result = game.handle_message(message)
                     except Exception as ex:
@@ -183,13 +196,18 @@ async def play():
                     print(game.show_state())
 
                     if isinstance(result, GameMessage):
-                        await game_io.opponent_attack_result(result.data)
                         await send(ws, result)
                         my_turn_to_attack = True
-                    else:
-                        await game_io.player_attack_result(message.data)
-                else:
-                    current_game_info = message
+
+                    match message.data.type_:
+                        case AttackResult.type_:
+                            await game_io.player_attack_result(message.data)
+                        case AttackRequest.type_:
+                            await game_io.opponent_attack_result(result.data)
+                        case PossibleAttack.type_:
+                            await game_io.opponent_possible_attack(message.data)
+                        case _:
+                            raise ValueError()
 
             if current_game_info.status == GameStatus.Ended:
                 # TODO

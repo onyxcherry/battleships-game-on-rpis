@@ -3,7 +3,7 @@ import enum
 from typing import Any, Literal, Optional, TypeAlias
 from domain.ships import MastedShipsCounts
 from pydantic.dataclasses import dataclass
-from domain.attacks import AttackRequest, AttackResult
+from domain.attacks import AttackRequest, AttackResult, PossibleAttack
 import json
 from pydantic import UUID4, Field as PydField
 
@@ -74,7 +74,9 @@ class GameInfo(Serializable):
 class GameMessage(Serializable):
     uniqid: UUID4
     # TODO: rename to `type`
-    data: AttackRequest | AttackResult = PydField(discriminator="type_")
+    data: AttackRequest | AttackResult | PossibleAttack = PydField(
+        discriminator="type_"
+    )
     what: Literal["GameMessage"] = PydField(
         default="GameMessage", init=False, repr=False
     )
