@@ -22,12 +22,10 @@ except ImportError:
 
 
 class IO:
-    def __init__(self, masted_ships: MastedShipsCounts, board_size: int):
+    def __init__(self):
         self._in_queue : janus.Queue[ActionEvent] = None
         self._out_queue : janus.Queue[ActionEvent] = None
         self._stop = Event()
-        self._board_size = board_size
-        self._masted_counts = masted_ships
 
         if ON_PC:
             self._io : pg_IO = None
@@ -153,10 +151,12 @@ class IO:
         tile = (x,y)
 
         await self.put_out_action(ActionEvent(OutActions.HoverShips,tile, DisplayBoard.Ships))
-    
-    def start(self) -> None:
+    def start(self, masted_ships: MastedShipsCounts, board_size: int) -> None:
         self._in_queue = janus.Queue()
         self._out_queue = janus.Queue()
+        self._board_size = board_size
+        self._masted_counts = masted_ships
+
         if ON_PC:
             self._io = pg_IO(self._board_size, self._in_queue.sync_q, self._out_queue.sync_q, self._stop)
             self._io_t = Thread(target=self._io.run)

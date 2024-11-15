@@ -33,6 +33,8 @@ logger = get_logger(__name__)
 
 ping_timeout = False
 
+game_io = IO()
+
 
 async def receive(websocket) -> dict:
     data = await websocket.recv()
@@ -48,9 +50,12 @@ async def send(websocket, data: Serializable) -> None:
     logger.debug(f"Sent: {formatted}")
 
 
-async def place_ships(game: Game, game_io: IO):    
-    masted_shpis = await game_io.get_masted_ships()
-    game.place_ships(masted_shpis)
+async def place_ships(game: Game, game_io: IO):
+    masted_ships = await game_io.get_masted_ships()
+    if masted_ships is not None:
+        game.place_ships(masted_ships)
+    else:
+        logger.warning("No masted ships")
 
 
 async def read_input() -> Field:
@@ -114,10 +119,9 @@ async def play():
             masted_ships=game_info.masted_ships, board_size=game_info.board_size
         )
 
-        game_io = IO(
+        game_io.start(
             masted_ships=game_info.masted_ships, board_size=game_info.board_size
         )
-        game_io.start()
 
         if placing_ships_task is None:
             placing_ships_task = asyncio.create_task(place_ships(game, game_io))
