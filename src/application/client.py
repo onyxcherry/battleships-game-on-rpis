@@ -206,7 +206,6 @@ async def play():
                     await game_io.handle_messages(message, result)
 
             if current_game_info.status == GameStatus.Ended or game.all_ships_wrecked:
-                next_attack_task.cancel()
                 break
 
         if game.all_ships_wrecked:
@@ -240,21 +239,26 @@ async def play():
                     logger.info("You've won! Congratulations!")
                 await ws.close()
                 break
-
-        # what after game's end?
+    game_io.stop()
 
 
 async def main():
     play_task = asyncio.create_task(play())
     try:
-        await asyncio.gather(play_task, return_exceptions=True)
-    except Exception as ex:
-        exc = play_task.exception()
-        logger.exception(exc)
-        logger.exception(ex)
-    # except KeyboardInterrupt:
-    #     pass
-    # play_task.cancel()
+        done, _ = await asyncio.wait([play_task], return_when=asyncio.FIRST_EXCEPTION)
+    except asyncio.CancelledError:
+        logger.info("Playing cancelled, exiting...")
+        game_io.stop()
+        return
+
+    res = done.pop().result()
+    if isinstance(res, Exception):
+        logger.exception(res)
+    elif isinstance(res, BaseException):
+        logger.error("Handled BaseException")
+        logger.exception(res)
+    elif res is not None:
+        logger.info(f"Result: {res}")
 
 
 if __name__ == "__main__":
