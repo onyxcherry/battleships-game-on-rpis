@@ -17,7 +17,7 @@ from application.messaging import (
     AttackResult,
     PossibleAttack
 )
-from config import get_logger
+from config import get_logger, CONFIG
 from domain.field import Field
 from domain.ships import MastedShips, Ship
 from websockets import ConnectionClosedOK
@@ -56,6 +56,11 @@ async def place_ships(game: Game, game_io: IO):
         game.place_ships(masted_ships)
     else:
         logger.warning("No masted ships")
+
+
+def show_state(game: Game) -> None:
+    if CONFIG.mode == "terminal":
+        print(game.show_state())
 
 
 async def read_input() -> Field:
@@ -179,7 +184,7 @@ async def play():
 
                 message = game.attack(field_to_attack)
                 await send(ws, message)
-                print(game.show_state())
+                show_state(game)
                 my_turn_to_attack = False
 
             try:
@@ -197,7 +202,7 @@ async def play():
                     except Exception as ex:
                         logger.exception(ex)
                         raise ex
-                    print(game.show_state())
+                    show_state(game)
 
                     if isinstance(result, GameMessage):
                         await send(ws, result)
