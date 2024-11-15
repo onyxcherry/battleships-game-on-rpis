@@ -203,15 +203,7 @@ async def play():
                         await send(ws, result)
                         my_turn_to_attack = True
 
-                    match message.data.type_:
-                        case AttackResult.type_:
-                            await game_io.player_attack_result(message.data)
-                        case AttackRequest.type_:
-                            await game_io.opponent_attack_result(result.data)
-                        case PossibleAttack.type_:
-                            await game_io.opponent_possible_attack(message.data)
-                        case _:
-                            raise ValueError()
+                    await game_io.handle_messages(message, result)
 
             if current_game_info.status == GameStatus.Ended or game.all_ships_wrecked:
                 next_attack_task.cancel()

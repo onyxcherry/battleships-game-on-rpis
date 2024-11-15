@@ -1,5 +1,6 @@
 import asyncio
 from threading import Event
+from application.messaging import GameMessage
 import janus
 from typing import Tuple, Optional
 from threading import Thread
@@ -7,7 +8,7 @@ from application.io.actions import InActions, OutActions, ActionEvent, DisplayBo
 from domain.field import Field
 from domain.boards import ShipsBoard
 from domain.ships import MastedShips, MastedShipsCounts
-from domain.attacks import AttackResult, AttackResultStatus, PossibleAttack
+from domain.attacks import AttackRequest, AttackResult, AttackResultStatus, PossibleAttack
 
 try:   # distinguish pc and rpi by presence of pygame
     from application.io.pg_io import IO as pg_IO
@@ -151,6 +152,18 @@ class IO:
         tile = (x,y)
 
         await self.put_out_action(ActionEvent(OutActions.HoverShips,tile, DisplayBoard.Ships))
+
+    async def handle_messages(self, message: GameMessage, result: Optional[GameMessage]) -> None:
+        match message.data.type_:
+            case AttackResult.type_:
+                await self.player_attack_result(message.data)
+            case AttackRequest.type_:
+                await self.opponent_attack_result(result.data)
+            case PossibleAttack.type_:
+                await self.opponent_possible_attack(message.data)
+            case _:
+                raise ValueError()
+
     def start(self, masted_ships: MastedShipsCounts, board_size: int) -> None:
         self._in_queue = janus.Queue()
         self._out_queue = janus.Queue()
