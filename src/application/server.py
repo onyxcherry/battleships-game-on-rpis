@@ -3,7 +3,7 @@
 import asyncio
 import json
 import pprint
-from typing import Optional
+from typing import Final, Literal, Optional
 from uuid import uuid4
 from application.messaging import (
     ClientInfo,
@@ -16,7 +16,7 @@ from application.messaging import (
 )
 from config import get_logger
 from domain.ships import MastedShipsCounts
-from websockets import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
+from websockets import ConnectionClosedError, ConnectionClosedOK
 from websockets.asyncio.server import serve, ServerConnection
 
 
@@ -28,13 +28,18 @@ logger = get_logger(__name__)
 masted_ships_counts = MastedShipsCounts(single=1, two=0, three=0, four=0)
 board_size = 10
 
+ClientNumber = Literal[0, 1]
+ClientName = Literal["FIRST", "SECOND"]
+client_names: Final = ["FIRST", "SECOND"]
+
 
 async def receive(websocket) -> dict:
     data = await websocket.recv()
     decoded = decode_json_message(data)
     formatted = pprint.pformat(decoded, indent=2)
-    from_who = "FIRST" if websocket == connected_clients[0] else "SECOND"
-    logger.debug(f"Received from {from_who}: {formatted}")
+    client_number = get_client_number(websocket)
+    assert client_number is not None
+    logger.debug(f"Received from {client_names[client_number]}: {formatted}")
     return decoded
 
 
@@ -46,14 +51,31 @@ async def send(websocket, data: Serializable | dict) -> None:
     json_dumped = json.dumps(serialized)
     await websocket.send(json_dumped)
     formatted = pprint.pformat(serialized, indent=2)
-    to_whom = "FIRST" if websocket == connected_clients[0] else "SECOND"
-    logger.debug(f"Sent to {to_whom}: {formatted}")
+    client_number = get_client_number(websocket)
+    assert client_number is not None
+    logger.debug(f"Sent to {client_names[client_number]}: {formatted}")
 
 
-async def try_send(websocket, data: Serializable | dict) -> bool:
+def mark_client_as_disconnected(client_number: ClientNumber) -> None:
+    connected_clients[client_number] = None
+    client_infos[client_number].connected = False
+
+
+async def try_send(websocket: ServerConnection, data: Serializable | dict) -> bool:
+    client_number = 0 if websocket == connected_clients[0] else 1
     try:
         await send(websocket, data)
-    except ConnectionClosed:
+    except ConnectionClosedOK:
+        mark_client_as_disconnected(client_number)
+        logger.info(
+            f"Client {client_names[client_number]} has closed the connection properly but they shouldn't have"
+        )
+        return False
+    except ConnectionClosedError:
+        mark_client_as_disconnected(client_number)
+        logger.info(
+            f"Connection to client {client_names[client_number]} has closed improperly but it shouldn't have"
+        )
         return False
     else:
         return True
@@ -109,10 +131,9 @@ async def update_game_info() -> None:
         opponent=client_infos[1],
         extra=ExtraInfo(you_start_first=True, you_won=first_client_won),
     )
-    await send(connected_clients[0], game_info_for_first_client)
+    if connected_clients[0] is not None:
+        await try_send(connected_clients[0], game_info_for_first_client)
 
-    if connected_clients[1] is None:
-        return
     game_info_for_second_client = GameInfo(
         masted_ships=masted_ships_counts,
         board_size=board_size,
@@ -121,7 +142,8 @@ async def update_game_info() -> None:
         opponent=client_infos[0],
         extra=ExtraInfo(you_start_first=False, you_won=second_client_won),
     )
-    await send(connected_clients[1], game_info_for_second_client)
+    if connected_clients[1] is not None:
+        await try_send(connected_clients[1], game_info_for_second_client)
 
 
 async def welcome_second_client(websocket: ServerConnection) -> None:
@@ -129,6 +151,14 @@ async def welcome_second_client(websocket: ServerConnection) -> None:
     client_info = parse_client_info(data)
     client_infos[1] = client_info
     await update_game_info()
+
+
+def get_client_number(websocket: Optional[ServerConnection]) -> Optional[ClientNumber]:
+    if websocket == connected_clients[0]:
+        return 0
+    elif websocket == connected_clients[1]:
+        return 1
+    return None
 
 
 async def listen(websocket: ServerConnection):
@@ -141,20 +171,31 @@ async def listen(websocket: ServerConnection):
         logger.debug(f"Second client connected: {websocket.remote_address}")
         await welcome_second_client(websocket)
 
+    client_number = get_client_number(websocket)
+    if client_number is None:
+        raise RuntimeError(
+            f"Client number is None but websocket={websocket} object is present"
+        )
+
     while True:
-        client_number = 0 if websocket == connected_clients[0] else 1
         try:
             data = await receive(websocket)
         except ConnectionClosedOK:
-            connected_clients[client_number] = None
-            break
+            logger.info(
+                f"Client {client_names[client_number]} has disconnected without error"
+            )
+            mark_client_as_disconnected(client_number)
+            await update_game_info()
         except ConnectionClosedError:
-            connected_clients[client_number] = None
-            opponent_number = int(not client_number)
-            client_infos[opponent_number].connected = False
-            if (opponent_conn := connected_clients[opponent_number]) is not None:
-                await try_send(opponent_conn, client_infos[opponent_number])
-            break
+            logger.info(
+                f"Connection to client {client_names[client_number]} has terminated improperly"
+            )
+            mark_client_as_disconnected(client_number)
+            await update_game_info()
+
+        client_number = get_client_number(websocket)
+        if client_number is None:
+            return
 
         if data.get("what") == "ClientInfo":
             parsed_client_info = parse_client_info(data)
@@ -162,7 +203,8 @@ async def listen(websocket: ServerConnection):
             await update_game_info()
         else:
             opponent_conn = connected_clients[int(not client_number)]
-            await send(opponent_conn, data)
+            if opponent_conn is not None:
+                await try_send(opponent_conn, data)
 
 
 async def main():
