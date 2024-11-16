@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import asyncio
+import dataclasses
 import json
 import pprint
 from typing import Final, Literal, Optional
@@ -58,7 +59,10 @@ async def send(websocket, data: Serializable | dict) -> None:
 
 def mark_client_as_disconnected(client_number: ClientNumber) -> None:
     connected_clients[client_number] = None
-    client_infos[client_number].connected = False
+    updated_client_info = dataclasses.replace(
+        client_infos[client_number], connected=False
+    )
+    client_infos[client_number] = updated_client_info
 
 
 async def try_send(websocket: ServerConnection, data: Serializable | dict) -> bool:
