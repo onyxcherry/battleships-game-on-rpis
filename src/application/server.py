@@ -59,9 +59,9 @@ async def send(websocket, data: Serializable | dict) -> None:
 
 def mark_client_as_disconnected(client_number: ClientNumber) -> None:
     connected_clients[client_number] = None
-    updated_client_info = dataclasses.replace(
-        client_infos[client_number], connected=False
-    )
+    client_info = client_infos[client_number]
+    assert client_info is not None
+    updated_client_info = dataclasses.replace(client_info, connected=False)
     client_infos[client_number] = updated_client_info
 
 
@@ -120,7 +120,7 @@ async def update_game_info() -> None:
 
     first_client_won = None
     second_client_won = None
-    if client_infos[0].all_ships_wrecked:
+    if client_infos[0] is not None and client_infos[0].all_ships_wrecked:
         game_status = GameStatus.Ended
         first_client_won = False
         second_client_won = True
@@ -183,6 +183,7 @@ async def listen(websocket: ServerConnection):
             f"Client number is None but websocket={websocket} object is present"
         )
 
+    data = None
     while True:
         try:
             data = await receive(websocket)
@@ -204,6 +205,8 @@ async def listen(websocket: ServerConnection):
         if client_number is None:
             return
 
+        # moreover, `data` cannot be stale as disconnected client's handling returned
+        assert data is not None
         if data.get("what") == "ClientInfo":
             parsed_client_info = parse_client_info(data)
             client_infos[client_number] = parsed_client_info

@@ -75,7 +75,7 @@ def show_state(game: Game) -> None:
         print(game.show_state())
 
 
-async def read_input() -> Field:
+async def read_input() -> tuple[Field, bool]:
     print("Enter next field to attack:")
     loop = asyncio.get_event_loop()
     fut = loop.create_future()
@@ -90,7 +90,7 @@ async def read_input() -> Field:
         result = await fut
     except asyncio.CancelledError:
         loop.remove_reader(sys.stdin)
-        return None
+        raise RuntimeError("Cancelled, no field returned")
 
     loop.remove_reader(sys.stdin)
     if not isinstance(result, str):

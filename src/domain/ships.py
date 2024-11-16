@@ -169,7 +169,7 @@ class MastedShips:
         ships_of_mast_count = {1: set(), 2: set(), 3: set(), 4: set()}
         for ship in ships:
             ships_of_mast_count[ship.original_masts_count].add(ship)
-        return MastedShips(
+        return cls(
             counts=counts,
             single=ships_of_mast_count[1],
             two=ships_of_mast_count[2],
