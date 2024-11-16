@@ -19,7 +19,7 @@ from application.messaging import (
 )
 from config import get_logger, CONFIG
 from domain.field import Field
-from domain.ships import MastedShips, Ship
+from domain.ships import MastedShips, Ship, ships_of_standard_count
 from websockets import ConnectionClosedOK
 from websockets.asyncio.client import connect
 from domain.client.game import Game
@@ -50,12 +50,24 @@ async def send(websocket, data: Serializable) -> None:
     logger.debug(f"Sent: {formatted}")
 
 
-async def place_ships(game: Game, game_io: IO):
-    masted_ships = await game_io.get_masted_ships()
-    if masted_ships is not None:
+async def place_ships(game: Game) -> None:
+    if CONFIG.mode == "terminal":
+        all_ships = ships_of_standard_count()
+        counts = game.masted_ships_counts
+        masted_ships = MastedShips(
+            counts=counts,
+            single=set(list(all_ships.single)[: counts.single]),
+            two=set(list(all_ships.two)[: counts.two]),
+            three=set(list(all_ships.three)[: counts.three]),
+            four=set(list(all_ships.four)[: counts.four]),
+        )
         game.place_ships(masted_ships)
     else:
-        logger.warning("No masted ships")
+        masted_ships = await game_io.get_masted_ships()
+        if masted_ships is not None:
+            game.place_ships(masted_ships)
+        else:
+            logger.warning("No masted ships")
 
 
 def show_state(game: Game) -> None:
@@ -81,22 +93,27 @@ async def read_input() -> Field:
         return None
 
     loop.remove_reader(sys.stdin)
-    return Field(result)
+    if not isinstance(result, str):
+        raise RuntimeError(
+            f"Reading field from stdin failed weirdly; type: {type(result)}"
+        )
+    is_real = True
+    if result.startswith(">"):
+        is_real = False
+
+    return (Field(result.lstrip(">")), is_real)
 
 
-async def get_possible_or_real_attack(game_io: IO) -> Optional[tuple[Field, bool]]:
-    attack_is_real = True
-    
-    # allow attacking by using either IO class or stdin
-    # done, pending = await asyncio.wait([
-    #     asyncio.create_task(read_input()),
-    #     asyncio.create_task(game_io.get_next_attack())
-    # ], return_when=asyncio.FIRST_COMPLETED)
+async def get_possible_or_real_attack() -> Optional[tuple[Field, bool]]:
+    if CONFIG.mode == "terminal":
+        return await read_input()
+    else:
+        return await game_io.get_possible_or_real_attack()
 
-    # field_to_attack = done.pop().result()
-    # pending.pop().cancel()
-    field_to_attack, attack_is_real = await game_io.get_possible_or_real_attack()
-    return field_to_attack, attack_is_real
+
+def stop_all():
+    if CONFIG.mode != "terminal":
+        game_io.stop()
 
 
 async def play():
@@ -124,12 +141,13 @@ async def play():
             masted_ships=game_info.masted_ships, board_size=game_info.board_size
         )
 
-        game_io.start(
-            masted_ships=game_info.masted_ships, board_size=game_info.board_size
-        )
+        if CONFIG.mode != "terminal":
+            game_io.start(
+                masted_ships=game_info.masted_ships, board_size=game_info.board_size
+            )
 
         if placing_ships_task is None:
-            placing_ships_task = asyncio.create_task(place_ships(game, game_io))
+            placing_ships_task = asyncio.create_task(place_ships(game))
 
         while True:
             try:
@@ -160,6 +178,8 @@ async def play():
             ):
                 break
 
+        show_state(game)
+
         my_turn_to_attack = (
             current_game_info.extra is not None
             and current_game_info.extra.you_start_first is True
@@ -167,7 +187,9 @@ async def play():
         while True:
             if my_turn_to_attack:
                 if next_attack_or_possible_attack_task is None:
-                    next_attack_or_possible_attack_task = asyncio.create_task(get_possible_or_real_attack(game_io))
+                    next_attack_or_possible_attack_task = asyncio.create_task(
+                        get_possible_or_real_attack()
+                    )
                     continue
                 elif not next_attack_or_possible_attack_task.done():
                     try:
@@ -208,7 +230,8 @@ async def play():
                         await send(ws, result)
                         my_turn_to_attack = True
 
-                    await game_io.handle_messages(message, result)
+                    if CONFIG.mode != "terminal":
+                        await game_io.handle_messages(message, result)
 
             if current_game_info.status == GameStatus.Ended or game.all_ships_wrecked:
                 break
@@ -244,7 +267,7 @@ async def play():
                     logger.info("You've won! Congratulations!")
                 await ws.close()
                 break
-    game_io.stop()
+    stop_all()
 
 
 async def main():
@@ -253,7 +276,7 @@ async def main():
         done, _ = await asyncio.wait([play_task], return_when=asyncio.FIRST_EXCEPTION)
     except asyncio.CancelledError:
         logger.info("Playing cancelled, exiting...")
-        game_io.stop()
+        stop_all()
         return
 
     res = done.pop().result()
