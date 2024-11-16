@@ -15,8 +15,7 @@ from application.messaging import (
     decode_json_message,
     parse_client_info,
 )
-from config import get_logger
-from domain.ships import MastedShipsCounts
+from config import get_logger, CONFIG
 from websockets import ConnectionClosedError, ConnectionClosedOK
 from websockets.asyncio.server import serve, ServerConnection
 
@@ -26,8 +25,6 @@ connected_clients: list[Optional[ServerConnection]] = [None, None]
 client_infos: list[Optional[ClientInfo]] = [None, None]
 logger = get_logger(__name__)
 
-masted_ships_counts = MastedShipsCounts(single=1, two=0, three=0, four=0)
-board_size = 10
 
 ClientNumber = Literal[0, 1]
 ClientName = Literal["FIRST", "SECOND"]
@@ -103,8 +100,8 @@ async def welcome_first_client(websocket: ServerConnection) -> None:
     client_info = parse_client_info(data)
     client_infos[0] = client_info
     game_info = GameInfo(
-        masted_ships=masted_ships_counts,
-        board_size=board_size,
+        masted_ships=CONFIG.masted_ships_counts,
+        board_size=CONFIG.board_size,
         uniqid=uuid4(),
         status=GameStatus.WaitingToStart,
         opponent=None,
@@ -130,8 +127,8 @@ async def update_game_info() -> None:
         second_client_won = False
 
     game_info_for_first_client = GameInfo(
-        masted_ships=masted_ships_counts,
-        board_size=board_size,
+        masted_ships=CONFIG.masted_ships_counts,
+        board_size=CONFIG.board_size,
         uniqid=uuid4(),
         status=game_status,
         opponent=client_infos[1],
@@ -141,8 +138,8 @@ async def update_game_info() -> None:
         await try_send(connected_clients[0], game_info_for_first_client)
 
     game_info_for_second_client = GameInfo(
-        masted_ships=masted_ships_counts,
-        board_size=board_size,
+        masted_ships=CONFIG.masted_ships_counts,
+        board_size=CONFIG.board_size,
         uniqid=uuid4(),
         status=game_status,
         opponent=client_infos[0],

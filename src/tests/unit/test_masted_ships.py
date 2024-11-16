@@ -2,12 +2,12 @@ from domain.boards import ShipsBoard
 from domain.field import Field
 from domain.ships import (
     MastedShips,
-    MastedShipsCounts,
     Ship,
     ships_of_standard_count,
 )
 from pydantic import ValidationError
 import pytest
+from config import MastedShipsCounts
 
 
 def tests_masted_ships_when_counts_matches():

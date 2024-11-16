@@ -8,7 +8,7 @@ from application.messaging import (
 )
 from domain.attacks import AttackRequest, AttackResult, AttackResultStatus
 from domain.field import Field
-from domain.ships import MastedShipsCounts
+from config import MastedShipsCounts
 
 
 def tests_serializing_game_message():

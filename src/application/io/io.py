@@ -7,7 +7,8 @@ from threading import Thread
 from application.io.actions import InActions, OutActions, ActionEvent, DisplayBoard
 from domain.field import Field
 from domain.boards import ShipsBoard
-from domain.ships import MastedShips, MastedShipsCounts
+from domain.ships import MastedShips
+from config import MastedShipsCounts
 from domain.attacks import AttackRequest, AttackResult, AttackResultStatus, PossibleAttack
 
 try:   # distinguish pc and rpi by presence of pygame

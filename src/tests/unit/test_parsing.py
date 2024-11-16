@@ -9,7 +9,7 @@ from application.messaging import (
     parse_game_message_or_info,
 )
 from domain.field import Field
-from domain.ships import MastedShipsCounts
+from config import MastedShipsCounts
 
 
 def test_parsing_game_message_or_info():

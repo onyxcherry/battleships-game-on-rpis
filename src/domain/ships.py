@@ -1,4 +1,5 @@
 import enum
+from config import MastedShipsCounts
 from domain.attacks import AttackResultStatus
 from domain.field import Field
 from typing import Final, Self
@@ -135,14 +136,6 @@ class Ship:
 
     def __repr__(self) -> str:
         return f"Ship({self.fields!r})"
-
-
-@dataclass(frozen=True, config=dataclass_config)
-class MastedShipsCounts:
-    single: int
-    two: int
-    three: int
-    four: int
 
 
 @dataclass(frozen=True, config=dataclass_config)

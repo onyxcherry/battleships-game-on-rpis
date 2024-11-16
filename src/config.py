@@ -1,12 +1,16 @@
-from dataclasses import dataclass
 import logging
 import sys
 from typing import Final, Literal
+
+from pydantic import ConfigDict
+from pydantic.dataclasses import dataclass
 
 
 FORMATTER = logging.Formatter(
     "%(asctime)s %(levelname)s %(module)s %(funcName)s: %(message)s"
 )
+
+dataclass_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -28,10 +32,20 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
+@dataclass(frozen=True, config=dataclass_config)
+class MastedShipsCounts:
+    single: int
+    two: int
+    three: int
+    four: int
+
+
 @dataclass(frozen=True)
 class Config:
     mode: Literal["terminal", "pygame", "rgbled"]
     logging_level: Literal["DEBUG", "INFO", "WARNING"]
+    masted_ships_counts = MastedShipsCounts(single=1, two=0, three=0, four=0)
+    board_size = 10
 
 
-CONFIG: Final = Config(mode="pygame", logging_level="INFO")
+CONFIG: Final = Config(mode="pygame", logging_level="DEBUG")

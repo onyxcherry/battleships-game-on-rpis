@@ -1,7 +1,8 @@
 from domain.attacks import AttackResultStatus
 from domain.boards import ShipsBoard, ShotsBoard
 from domain.field import Field
-from domain.ships import MastedShips, MastedShipsCounts, Ship
+from domain.ships import MastedShips, Ship
+from config import MastedShipsCounts
 
 
 def tests_rendering_and_printing_ships_board_of_all_ships_states():
