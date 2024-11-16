@@ -35,6 +35,9 @@ ping_timeout = False
 
 game_io = IO()
 
+placing_ships_task: Optional[asyncio.Task] = None
+next_attack_or_possible_attack_task: Optional[asyncio.Task] = None
+
 
 async def receive(websocket) -> dict:
     data = await websocket.recv()
@@ -117,6 +120,9 @@ def stop_all():
 
 
 async def play():
+    global placing_ships_task
+    global next_attack_or_possible_attack_task
+
     starting_client_info = ClientInfo(
         uniqid=uuid4(),
         connected=True,
@@ -125,8 +131,6 @@ async def play():
         all_ships_wrecked=False,
     )
     current_game_info: Optional[GameInfo] = None
-    placing_ships_task: Optional[asyncio.Task] = None
-    next_attack_or_possible_attack_task: Optional[asyncio.Task] = None
 
     placed_ships_info_sent: bool = False
 
@@ -146,8 +150,7 @@ async def play():
                 masted_ships=game_info.masted_ships, board_size=game_info.board_size
             )
 
-        if placing_ships_task is None:
-            placing_ships_task = asyncio.create_task(place_ships(game))
+        placing_ships_task = asyncio.create_task(place_ships(game))
 
         while True:
             try:
