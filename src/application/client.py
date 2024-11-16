@@ -4,6 +4,7 @@ import asyncio
 import pprint
 import sys
 from uuid import uuid4
+from application.io.actions import EventInforming
 from application.messaging import (
     ClientInfo,
     GameInfo,
@@ -20,7 +21,6 @@ from application.messaging import (
 from config import get_logger, CONFIG
 from domain.field import Field
 from domain.ships import MastedShips, Ship, ships_of_standard_count
-from websockets import ConnectionClosedOK
 from websockets.asyncio.client import connect
 from domain.client.game import Game
 from application.io.io import IO
@@ -133,21 +133,27 @@ async def play():
     current_game_info: Optional[GameInfo] = None
 
     placed_ships_info_sent: bool = False
+    inf_event = EventInforming()
 
     async with connect(
         server_address, ping_interval=None, ping_timeout=ping_timeout
     ) as ws:
+        inf_event.player_connected()
         await send(ws, starting_client_info)
 
         data = await receive(ws)
-        game_info = parse_game_info(data)
+        current_game_info = parse_game_info(data)
+        inf_event.react_to(current_game_info)
+
         game = Game(
-            masted_ships=game_info.masted_ships, board_size=game_info.board_size
+            masted_ships=current_game_info.masted_ships,
+            board_size=current_game_info.board_size,
         )
 
         if CONFIG.mode != "terminal":
             game_io.start(
-                masted_ships=game_info.masted_ships, board_size=game_info.board_size
+                masted_ships=current_game_info.masted_ships,
+                board_size=current_game_info.board_size,
             )
 
         placing_ships_task = asyncio.create_task(place_ships(game))
@@ -158,11 +164,9 @@ async def play():
                     data = await receive(ws)
             except TimeoutError:
                 pass
-            except ConnectionClosedOK:
-                pass
             else:
-                game_info = parse_game_info(data)
-                current_game_info = game_info
+                current_game_info = parse_game_info(data)
+                inf_event.react_to(current_game_info)
 
             if placing_ships_task.done() and not placed_ships_info_sent:
                 client_info = ClientInfo(
@@ -174,6 +178,7 @@ async def play():
                 )
                 await send(ws, client_info)
                 placed_ships_info_sent = True
+                inf_event.player_ready()
 
             if (
                 current_game_info is not None
@@ -255,11 +260,9 @@ async def play():
                     data = await receive(ws)
             except TimeoutError:
                 pass
-            except ConnectionClosedOK:
-                pass
             else:
-                game_info = parse_game_info(data)
-                current_game_info = game_info
+                current_game_info = parse_game_info(data)
+                inf_event.react_to(current_game_info)
 
             if current_game_info.status == GameStatus.Ended:
                 logger.info("Game was ended")
@@ -268,6 +271,9 @@ async def play():
                     and current_game_info.extra.you_won
                 ):
                     logger.info("You've won! Congratulations!")
+                    inf_event.won(
+                        "Player" if current_game_info.extra.you_won else "Opponent"
+                    )
                 await ws.close()
                 break
     stop_all()

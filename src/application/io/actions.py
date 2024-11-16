@@ -1,6 +1,8 @@
 import enum
+from application.messaging import GameInfo
+from config import get_logger
 from pydantic.dataclasses import dataclass
-from typing import Optional
+from typing import Literal, Optional
 from domain.field import Field
 
 class InActions(enum.StrEnum):
@@ -63,3 +65,43 @@ class ActionEvent:
         if self.tile is None:
             return None
         return Field.fromTuple(self.tile)
+
+
+class EventInforming:
+    def __init__(self) -> None:
+        self._logger = get_logger(__name__)
+        self._opponent_connected: Optional[bool] = None
+        self._opponent_connected_shown: bool = False
+        self._opponent_ready_shown: bool = False
+
+    def react_to(self, game_info: GameInfo) -> None:
+        if game_info.opponent is None:
+            self._opponent_connected = False
+            return
+        if self._opponent_connected is None:
+            self._opponent_connected = game_info.opponent.connected
+        if self._opponent_connected and not game_info.opponent.connected:
+            self._logger.debug(InfoActions.OpponentDisconnected)
+        if game_info.opponent.connected and not self._opponent_connected_shown:
+            self._logger.debug(InfoActions.OpponentConnected)
+            self._opponent_connected_shown = True
+        if game_info.opponent.ready and not self._opponent_ready_shown:
+            self._logger.debug(InfoActions.OpponentReady)
+            self._opponent_ready_shown = True
+
+    def player_connected(self) -> None:
+        self._logger.debug(InfoActions.PlayerConnected)
+
+    def player_ready(self) -> None:
+        self._logger.debug(InfoActions.PlayerReady)
+
+    def player_disconnected(self) -> None:
+        self._logger.debug(InfoActions.PlayerDisconnected)
+
+    def won(self, who: Literal["Player", "Opponent"]) -> None:
+        if who == "Player":
+            self._logger.debug(InfoActions.PlayerWon)
+        elif who == "Opponent":
+            self._logger.debug(InfoActions.OpponentWon)
+        else:
+            raise ValueError(f"Invalid side won: {who}")
