@@ -14,13 +14,10 @@ from application.messaging import (
     parse_game_info,
     GameMessage,
     parse_game_message_or_info,
-    AttackRequest,
-    AttackResult,
-    PossibleAttack
 )
 from config import get_logger, CONFIG
 from domain.field import Field
-from domain.ships import MastedShips, Ship, ships_of_standard_count
+from domain.ships import MastedShips, ships_of_standard_count
 from websockets.asyncio.client import connect
 from domain.client.game import Game
 from application.io.io import IO
@@ -201,11 +198,16 @@ async def play():
                     continue
                 elif not next_attack_or_possible_attack_task.done():
                     try:
-                        await asyncio.wait_for(asyncio.shield(next_attack_or_possible_attack_task), timeout=0.1)
+                        await asyncio.wait_for(
+                            asyncio.shield(next_attack_or_possible_attack_task),
+                            timeout=0.1,
+                        )
                     except TimeoutError:
                         continue
 
-                field_to_attack, attack_is_real = next_attack_or_possible_attack_task.result()
+                field_to_attack, attack_is_real = (
+                    next_attack_or_possible_attack_task.result()
+                )
                 next_attack_or_possible_attack_task = None
                 if not attack_is_real:
                     message = Game.possible_attack_of(field_to_attack)

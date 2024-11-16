@@ -86,7 +86,8 @@ class GameMessage(Serializable):
 
     def stringify(self) -> str:
         return json.dumps(self.serialize())
-    
+
+
 GameMessageOrInfo: TypeAlias = GameMessage | GameInfo
 
 

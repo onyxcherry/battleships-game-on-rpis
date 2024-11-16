@@ -21,10 +21,10 @@ class Field:
 
     def __hash__(self) -> int:
         return hash(repr(self))
-    
+
     @classmethod
-    def fromTuple(cls, pos : tuple[int, int]):
-        y = chr(pos[1] + ord('A'))
+    def fromTuple(cls, pos: tuple[int, int]):
+        y = chr(pos[1] + ord("A"))
         x = pos[0] + 1
         return cls(f"{y}{x}")
 

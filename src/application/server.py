@@ -68,13 +68,15 @@ async def try_send(websocket: ServerConnection, data: Serializable | dict) -> bo
     except ConnectionClosedOK:
         mark_client_as_disconnected(client_number)
         logger.info(
-            f"Client {client_names[client_number]} has closed the connection properly but they shouldn't have"
+            f"Client {client_names[client_number]} has closed the connection properly"
+            + " but they shouldn't have"
         )
         return False
     except ConnectionClosedError:
         mark_client_as_disconnected(client_number)
         logger.info(
-            f"Connection to client {client_names[client_number]} has closed improperly but it shouldn't have"
+            f"Connection to client {client_names[client_number]} has closed improperly"
+            + " but it shouldn't have"
         )
         return False
     else:
@@ -188,7 +190,8 @@ async def listen(websocket: ServerConnection):
             await update_game_info()
         except ConnectionClosedError:
             logger.info(
-                f"Connection to client {client_names[client_number]} has terminated improperly"
+                f"Connection to client {client_names[client_number]} has terminated"
+                + " improperly"
             )
             mark_client_as_disconnected(client_number)
             await update_game_info()
