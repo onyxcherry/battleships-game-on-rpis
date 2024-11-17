@@ -15,7 +15,8 @@ class ShipsFieldsByType:
 
 
 class LaunchedShipCollidesError(ValueError):
-    pass
+    def __init__(self, msg: str, colliding_fields: list[Field]) -> None:
+        self.colliding_fields = colliding_fields
 
 
 class ShipsBoard:
@@ -46,9 +47,12 @@ class ShipsBoard:
                 colliding_fields.append(field)
         if len(colliding_fields) > 0:
             colliding_fields_msg = ", ".join(str(field) for field in colliding_fields)
+            exception_msg = (
+                f"{ship!s} collides with already launched ships due to "
+                + f"{colliding_fields_msg}"
+            )
             raise LaunchedShipCollidesError(
-                f"{ship!s} collides with already launched "
-                f"ships due to {colliding_fields_msg}"
+                exception_msg, colliding_fields=colliding_fields
             )
         self._ships_and_coastal_zones |= ship.fields_with_coastal_zone
         for field in ship.fields:

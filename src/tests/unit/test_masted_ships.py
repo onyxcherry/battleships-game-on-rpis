@@ -11,7 +11,7 @@ import pytest
 from config import MastedShipsCounts
 
 
-def tests_masted_ships_of_standard_count():
+def tests_creating_masted_ships_of_standard_count():
     _ = ships_of_standard_count()
 
 
