@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Self
 from string import ascii_uppercase
 
 
@@ -18,6 +18,9 @@ class Field:
         if not isinstance(obj, Field):
             return False
         return self._x == obj._x and self._y == obj._y
+
+    def __lt__(self, other: Self) -> bool:
+        return self.vector_from_zeros < other.vector_from_zeros
 
     def __hash__(self) -> int:
         return hash(repr(self))

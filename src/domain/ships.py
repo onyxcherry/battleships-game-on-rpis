@@ -69,6 +69,12 @@ class Ship:
             return False
         return self._properties == other._properties
 
+    def __lt__(self, other: Self) -> bool:
+        return (self.original_masts_count, sorted(self.fields)) < (
+            other.original_masts_count,
+            sorted(other.fields),
+        )
+
     def __hash__(self) -> int:
         return hash(self._properties)
 

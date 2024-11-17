@@ -41,7 +41,7 @@ class ShipsBoard:
 
     def add_ship(self, ship: Ship) -> None:
         colliding_fields = []
-        for field in list(ship.fields):
+        for field in sorted(list(ship.fields)):
             if field in self._ships_and_coastal_zones:
                 colliding_fields.append(field)
         if len(colliding_fields) > 0:
@@ -55,7 +55,7 @@ class ShipsBoard:
             self._ships[field] = ship
 
     def add_ships(self, ships: MastedShips) -> None:
-        for ship in [*ships.single, *ships.two, *ships.three, *ships.four]:
+        for ship in sorted([*ships.single, *ships.two, *ships.three, *ships.four]):
             self.add_ship(ship)
 
     def process_attack(self, field: Field) -> AttackResultStatus:
