@@ -20,8 +20,6 @@ class ShipStatus(enum.StrEnum):
 
 class Ship:
     def __init__(self, fields: set[Field]) -> None:
-        if not self.can_be_built_from_fields(fields):
-            raise RuntimeError("Invalid fields for the ship")
         self._fields: Final = fields
         self._parts_floating = copy.deepcopy(fields)
         self._parts_wrecked: set[Field] = set()
@@ -114,12 +112,6 @@ class Ship:
         else:
             raise RuntimeError(f"Bad ship state: {self.status}")
 
-    @staticmethod
-    def can_be_built_from_fields(fields: set[Field]) -> bool:
-        if 1 <= len(fields) <= 4:
-            return True
-        return False
-
     @classmethod
     def from_parts(cls, *, wrecked: set[Field], waving: set[Field]) -> Self:
         ship = cls(wrecked.union(waving))
@@ -138,6 +130,16 @@ class Ship:
         return f"Ship({self.fields!r})"
 
 
+class ShipBiggerThanAllowedError(ValueError):
+    def __init__(self, msg, ship: Ship) -> None:
+        self.ship = ship
+
+
+class ShipCountNotConformingError(ValueError):
+    def __init__(self, msg, ships: set[Ship]) -> None:
+        self.ships = ships
+
+
 @dataclass(frozen=True, config=dataclass_config)
 class MastedShips:
     counts: MastedShipsCounts
@@ -148,20 +150,36 @@ class MastedShips:
 
     @model_validator(mode="after")
     def verify_counts(self) -> Self:
-        if (
-            len(self.single) != self.counts.single
-            or len(self.two) != self.counts.two
-            or len(self.three) != self.counts.three
-            or len(self.four) != self.counts.four
-        ):
-            raise ValueError("Improper counts of ships")
+        ships_of_mast_count = {1: self.single, 2: self.two, 3: self.three, 4: self.four}
+        self.verify_conformity_of_counts(ships_of_mast_count, self.counts)
         return self
+
+    @classmethod
+    def verify_conformity_of_counts(
+        cls, ships_of_mast_count: dict[int, set[Ship]], counts: MastedShipsCounts
+    ) -> None:
+        counts_mapping = {1: "single", 2: "two", 3: "three", 4: "four"}
+        for masts_count, ships in ships_of_mast_count.items():
+            expected_count = getattr(counts, counts_mapping[masts_count])
+            if len(ships) != expected_count:
+                raise ShipCountNotConformingError(
+                    f"Improper count (provided {len(ships)} ships) of single masts"
+                    + f"(expected {expected_count})",
+                    ships=ships,
+                )
 
     @classmethod
     def from_set(cls, ships: set[Ship], counts: MastedShipsCounts) -> Self:
         ships_of_mast_count = {1: set(), 2: set(), 3: set(), 4: set()}
         for ship in ships:
+            if ship.original_masts_count not in ships_of_mast_count:
+                raise ShipBiggerThanAllowedError(
+                    f"Ship {ship} have {ship.original_masts_count} masts whereas"
+                    + " only 4 masts are allowed at maximum",
+                    ship=ship,
+                )
             ships_of_mast_count[ship.original_masts_count].add(ship)
+        cls.verify_conformity_of_counts(ships_of_mast_count, counts)
         return cls(
             counts=counts,
             single=ships_of_mast_count[1],
