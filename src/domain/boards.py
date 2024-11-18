@@ -28,17 +28,9 @@ class ShipsBoard:
 
     @property
     def ships_floating_count(self) -> int:
-        return len(
-            list(
-                filter(
-                    lambda val: val is not None,
-                    map(
-                        lambda ship: ship if ship.waving_masts_count > 0 else None,
-                        list(self._ships.values()),
-                    ),
-                )
-            )
-        )
+        ships = set(self._ships.values())
+        floating_ships = [ship for ship in ships if ship.waving_masts_count > 0]
+        return len(floating_ships)
 
     def add_ship(self, ship: Ship) -> None:
         colliding_fields = []

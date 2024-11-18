@@ -54,6 +54,12 @@ class Game:
         return message
 
     def handle_message(self, message: GameMessage) -> Optional[GameMessage]:
+        if not isinstance(message, GameMessage):
+            msg = (
+                "Message passed should be of type GameMessage,"
+                + f"provided: {type(message)}"
+            )
+            raise TypeError(msg)
         if isinstance(att_req := message.data, AttackRequest):
             status = self._ships_board.process_attack(att_req.field)
             result = AttackResult(field=att_req.field, status=status)
