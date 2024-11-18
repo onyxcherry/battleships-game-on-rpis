@@ -6,10 +6,11 @@ from application.messaging import (
     GameInfo,
     GameMessage,
     GameStatus,
+    parse_client_info,
     parse_game_message_or_info,
 )
 from domain.field import Field
-from domain.ships import MastedShipsCounts
+from config import MastedShipsCounts
 
 
 def test_parsing_game_message_or_info():
@@ -55,4 +56,22 @@ def test_parsing_game_message_or_info():
         masted_ships=MastedShipsCounts(single=4, two=3, three=2, four=1),
         board_size=10,
         extra=ExtraInfo(you_start_first=True, you_won=False, error="Some error"),
+    )
+
+
+def test_parsing_client_info():
+    client_data = {
+        "uniqid": "9fb087c2-29a0-4f1d-aa76-db1fb90ce1f2",
+        "connected": True,
+        "ships_placed": True,
+        "ready": False,
+        "all_ships_wrecked": False,
+        "what": "ClientInfo",
+    }
+    assert parse_client_info(client_data) == ClientInfo(
+        uniqid=UUID("9fb087c2-29a0-4f1d-aa76-db1fb90ce1f2"),
+        connected=True,
+        ships_placed=True,
+        ready=False,
+        all_ships_wrecked=False,
     )

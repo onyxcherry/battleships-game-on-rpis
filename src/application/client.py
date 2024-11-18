@@ -4,6 +4,7 @@ import asyncio
 import pprint
 import sys
 from uuid import uuid4
+from application.io.actions import EventInforming
 from application.messaging import (
     ClientInfo,
     GameInfo,
@@ -13,14 +14,10 @@ from application.messaging import (
     parse_game_info,
     GameMessage,
     parse_game_message_or_info,
-    AttackRequest,
-    AttackResult,
-    PossibleAttack
 )
-from config import get_logger
+from config import get_logger, CONFIG
 from domain.field import Field
-from domain.ships import MastedShips, Ship
-from websockets import ConnectionClosedOK
+from domain.ships import MastedShips, ships_of_standard_count
 from websockets.asyncio.client import connect
 from domain.client.game import Game
 from application.io.io import IO
@@ -32,6 +29,11 @@ server_address = "ws://localhost:4200"
 logger = get_logger(__name__)
 
 ping_timeout = False
+
+game_io = IO()
+
+placing_ships_task: Optional[asyncio.Task] = None
+next_attack_or_possible_attack_task: Optional[asyncio.Task] = None
 
 
 async def receive(websocket) -> dict:
@@ -48,12 +50,32 @@ async def send(websocket, data: Serializable) -> None:
     logger.debug(f"Sent: {formatted}")
 
 
-async def place_ships(game: Game, game_io: IO):    
-    masted_shpis = await game_io.get_masted_ships()
-    game.place_ships(masted_shpis)
+async def place_ships(game: Game) -> None:
+    if CONFIG.mode == "terminal":
+        all_ships = ships_of_standard_count()
+        counts = game.masted_ships_counts
+        masted_ships = MastedShips(
+            counts=counts,
+            single=set(list(all_ships.single)[: counts.single]),
+            two=set(list(all_ships.two)[: counts.two]),
+            three=set(list(all_ships.three)[: counts.three]),
+            four=set(list(all_ships.four)[: counts.four]),
+        )
+        game.place_ships(masted_ships)
+    else:
+        masted_ships = await game_io.get_masted_ships()
+        if masted_ships is not None:
+            game.place_ships(masted_ships)
+        else:
+            logger.warning("No masted ships")
 
 
-async def read_input() -> Field:
+def show_state(game: Game) -> None:
+    if CONFIG.mode == "terminal":
+        print(game.show_state())
+
+
+async def read_input() -> tuple[Field, bool]:
     print("Enter next field to attack:")
     loop = asyncio.get_event_loop()
     fut = loop.create_future()
@@ -68,28 +90,36 @@ async def read_input() -> Field:
         result = await fut
     except asyncio.CancelledError:
         loop.remove_reader(sys.stdin)
-        return None
+        raise RuntimeError("Cancelled, no field returned")
 
     loop.remove_reader(sys.stdin)
-    return Field(result)
+    if not isinstance(result, str):
+        raise RuntimeError(
+            f"Reading field from stdin failed weirdly; type: {type(result)}"
+        )
+    is_real = True
+    if result.startswith(">"):
+        is_real = False
+
+    return (Field(result.lstrip(">")), is_real)
 
 
-async def get_possible_or_real_attack(game_io: IO) -> Optional[tuple[Field, bool]]:
-    attack_is_real = True
-    
-    # allow attacking by using either IO class or stdin
-    # done, pending = await asyncio.wait([
-    #     asyncio.create_task(read_input()),
-    #     asyncio.create_task(game_io.get_next_attack())
-    # ], return_when=asyncio.FIRST_COMPLETED)
+async def get_possible_or_real_attack() -> Optional[tuple[Field, bool]]:
+    if CONFIG.mode == "terminal":
+        return await read_input()
+    else:
+        return await game_io.get_possible_or_real_attack()
 
-    # field_to_attack = done.pop().result()
-    # pending.pop().cancel()
-    field_to_attack, attack_is_real = await game_io.get_possible_or_real_attack()
-    return field_to_attack, attack_is_real
+
+def stop_all():
+    if CONFIG.mode != "terminal":
+        game_io.stop()
 
 
 async def play():
+    global placing_ships_task
+    global next_attack_or_possible_attack_task
+
     starting_client_info = ClientInfo(
         uniqid=uuid4(),
         connected=True,
@@ -98,29 +128,32 @@ async def play():
         all_ships_wrecked=False,
     )
     current_game_info: Optional[GameInfo] = None
-    placing_ships_task: Optional[asyncio.Task] = None
-    next_attack_or_possible_attack_task: Optional[asyncio.Task] = None
 
     placed_ships_info_sent: bool = False
+    inf_event = EventInforming()
 
     async with connect(
         server_address, ping_interval=None, ping_timeout=ping_timeout
     ) as ws:
+        inf_event.player_connected()
         await send(ws, starting_client_info)
 
         data = await receive(ws)
-        game_info = parse_game_info(data)
+        current_game_info = parse_game_info(data)
+        inf_event.react_to(current_game_info)
+
         game = Game(
-            masted_ships=game_info.masted_ships, board_size=game_info.board_size
+            masted_ships=current_game_info.masted_ships,
+            board_size=current_game_info.board_size,
         )
 
-        game_io = IO(
-            masted_ships=game_info.masted_ships, board_size=game_info.board_size
-        )
-        game_io.start()
+        if CONFIG.mode != "terminal":
+            game_io.start(
+                masted_ships=current_game_info.masted_ships,
+                board_size=current_game_info.board_size,
+            )
 
-        if placing_ships_task is None:
-            placing_ships_task = asyncio.create_task(place_ships(game, game_io))
+        placing_ships_task = asyncio.create_task(place_ships(game))
 
         while True:
             try:
@@ -128,11 +161,9 @@ async def play():
                     data = await receive(ws)
             except TimeoutError:
                 pass
-            except ConnectionClosedOK:
-                pass
             else:
-                game_info = parse_game_info(data)
-                current_game_info = game_info
+                current_game_info = parse_game_info(data)
+                inf_event.react_to(current_game_info)
 
             if placing_ships_task.done() and not placed_ships_info_sent:
                 client_info = ClientInfo(
@@ -144,12 +175,15 @@ async def play():
                 )
                 await send(ws, client_info)
                 placed_ships_info_sent = True
+                inf_event.player_ready()
 
             if (
                 current_game_info is not None
                 and current_game_info.status == GameStatus.Started
             ):
                 break
+
+        show_state(game)
 
         my_turn_to_attack = (
             current_game_info.extra is not None
@@ -158,15 +192,22 @@ async def play():
         while True:
             if my_turn_to_attack:
                 if next_attack_or_possible_attack_task is None:
-                    next_attack_or_possible_attack_task = asyncio.create_task(get_possible_or_real_attack(game_io))
+                    next_attack_or_possible_attack_task = asyncio.create_task(
+                        get_possible_or_real_attack()
+                    )
                     continue
                 elif not next_attack_or_possible_attack_task.done():
                     try:
-                        await asyncio.wait_for(asyncio.shield(next_attack_or_possible_attack_task), timeout=0.1)
+                        await asyncio.wait_for(
+                            asyncio.shield(next_attack_or_possible_attack_task),
+                            timeout=0.1,
+                        )
                     except TimeoutError:
                         continue
 
-                field_to_attack, attack_is_real = next_attack_or_possible_attack_task.result()
+                field_to_attack, attack_is_real = (
+                    next_attack_or_possible_attack_task.result()
+                )
                 next_attack_or_possible_attack_task = None
                 if not attack_is_real:
                     message = Game.possible_attack_of(field_to_attack)
@@ -175,7 +216,7 @@ async def play():
 
                 message = game.attack(field_to_attack)
                 await send(ws, message)
-                print(game.show_state())
+                show_state(game)
                 my_turn_to_attack = False
 
             try:
@@ -193,24 +234,16 @@ async def play():
                     except Exception as ex:
                         logger.exception(ex)
                         raise ex
-                    print(game.show_state())
+                    show_state(game)
 
                     if isinstance(result, GameMessage):
                         await send(ws, result)
                         my_turn_to_attack = True
 
-                    match message.data.type_:
-                        case AttackResult.type_:
-                            await game_io.player_attack_result(message.data)
-                        case AttackRequest.type_:
-                            await game_io.opponent_attack_result(result.data)
-                        case PossibleAttack.type_:
-                            await game_io.opponent_possible_attack(message.data)
-                        case _:
-                            raise ValueError()
+                    if CONFIG.mode != "terminal":
+                        await game_io.handle_messages(message, result)
 
             if current_game_info.status == GameStatus.Ended or game.all_ships_wrecked:
-                next_attack_task.cancel()
                 break
 
         if game.all_ships_wrecked:
@@ -229,11 +262,9 @@ async def play():
                     data = await receive(ws)
             except TimeoutError:
                 pass
-            except ConnectionClosedOK:
-                pass
             else:
-                game_info = parse_game_info(data)
-                current_game_info = game_info
+                current_game_info = parse_game_info(data)
+                inf_event.react_to(current_game_info)
 
             if current_game_info.status == GameStatus.Ended:
                 logger.info("Game was ended")
@@ -242,23 +273,33 @@ async def play():
                     and current_game_info.extra.you_won
                 ):
                     logger.info("You've won! Congratulations!")
+                    inf_event.won(
+                        "Player" if current_game_info.extra.you_won else "Opponent"
+                    )
                 await ws.close()
                 break
 
-        # what after game's end?
+    inf_event.player_disconnected()
+    stop_all()
 
 
 async def main():
     play_task = asyncio.create_task(play())
     try:
-        await asyncio.gather(play_task, return_exceptions=True)
-    except Exception as ex:
-        exc = play_task.exception()
-        logger.exception(exc)
-        logger.exception(ex)
-    # except KeyboardInterrupt:
-    #     pass
-    # play_task.cancel()
+        done, _ = await asyncio.wait([play_task], return_when=asyncio.FIRST_EXCEPTION)
+    except asyncio.CancelledError:
+        logger.info("Playing cancelled, exiting...")
+        stop_all()
+        return
+
+    res = done.pop().result()
+    if isinstance(res, Exception):
+        logger.exception(res)
+    elif isinstance(res, BaseException):
+        logger.error("Handled BaseException")
+        logger.exception(res)
+    elif res is not None:
+        logger.info(f"Result: {res}")
 
 
 if __name__ == "__main__":

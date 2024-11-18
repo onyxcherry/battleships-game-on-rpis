@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import enum
 from typing import Any, Literal, Optional, TypeAlias
-from domain.ships import MastedShipsCounts
+from config import MastedShipsCounts
 from pydantic.dataclasses import dataclass
 from domain.attacks import AttackRequest, AttackResult, PossibleAttack
 import json
@@ -86,7 +86,8 @@ class GameMessage(Serializable):
 
     def stringify(self) -> str:
         return json.dumps(self.serialize())
-    
+
+
 GameMessageOrInfo: TypeAlias = GameMessage | GameInfo
 
 

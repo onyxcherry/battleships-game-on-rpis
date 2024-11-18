@@ -4,7 +4,8 @@ from application.messaging import GameMessage
 from domain.attacks import AttackRequest, AttackResult, PossibleAttack
 from domain.field import Field
 from domain.boards import ShipsBoard, ShotsBoard
-from domain.ships import MastedShips, MastedShipsCounts
+from domain.ships import MastedShips
+from config import MastedShipsCounts
 from dataclasses import dataclass
 
 
@@ -53,6 +54,12 @@ class Game:
         return message
 
     def handle_message(self, message: GameMessage) -> Optional[GameMessage]:
+        if not isinstance(message, GameMessage):
+            msg = (
+                "Message passed should be of type GameMessage,"
+                + f"provided: {type(message)}"
+            )
+            raise TypeError(msg)
         if isinstance(att_req := message.data, AttackRequest):
             status = self._ships_board.process_attack(att_req.field)
             result = AttackResult(field=att_req.field, status=status)

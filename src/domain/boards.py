@@ -15,7 +15,8 @@ class ShipsFieldsByType:
 
 
 class LaunchedShipCollidesError(ValueError):
-    pass
+    def __init__(self, msg: str, colliding_fields: list[Field]) -> None:
+        self.colliding_fields = colliding_fields
 
 
 class ShipsBoard:
@@ -27,35 +28,30 @@ class ShipsBoard:
 
     @property
     def ships_floating_count(self) -> int:
-        return len(
-            list(
-                filter(
-                    lambda val: val is not None,
-                    map(
-                        lambda ship: ship if ship.waving_masts_count > 0 else None,
-                        list(self._ships.values()),
-                    ),
-                )
-            )
-        )
+        ships = set(self._ships.values())
+        floating_ships = [ship for ship in ships if ship.waving_masts_count > 0]
+        return len(floating_ships)
 
     def add_ship(self, ship: Ship) -> None:
         colliding_fields = []
-        for field in list(ship.fields):
+        for field in sorted(list(ship.fields)):
             if field in self._ships_and_coastal_zones:
                 colliding_fields.append(field)
         if len(colliding_fields) > 0:
             colliding_fields_msg = ", ".join(str(field) for field in colliding_fields)
+            exception_msg = (
+                f"{ship!s} collides with already launched ships due to "
+                + f"{colliding_fields_msg}"
+            )
             raise LaunchedShipCollidesError(
-                f"{ship!s} collides with already launched "
-                f"ships due to {colliding_fields_msg}"
+                exception_msg, colliding_fields=colliding_fields
             )
         self._ships_and_coastal_zones |= ship.fields_with_coastal_zone
         for field in ship.fields:
             self._ships[field] = ship
 
     def add_ships(self, ships: MastedShips) -> None:
-        for ship in [*ships.single, *ships.two, *ships.three, *ships.four]:
+        for ship in sorted([*ships.single, *ships.two, *ships.three, *ships.four]):
             self.add_ship(ship)
 
     def process_attack(self, field: Field) -> AttackResultStatus:

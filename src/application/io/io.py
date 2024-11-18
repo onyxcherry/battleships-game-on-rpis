@@ -1,13 +1,15 @@
 import asyncio
 from threading import Event
+from application.messaging import GameMessage
 import janus
 from typing import Tuple, Optional
 from threading import Thread
 from application.io.actions import InActions, OutActions, ActionEvent, DisplayBoard
 from domain.field import Field
 from domain.boards import ShipsBoard
-from domain.ships import MastedShips, MastedShipsCounts
-from domain.attacks import AttackResult, AttackResultStatus, PossibleAttack
+from domain.ships import MastedShips
+from config import MastedShipsCounts
+from domain.attacks import AttackRequest, AttackResult, AttackResultStatus, PossibleAttack
 
 try:   # distinguish pc and rpi by presence of pygame
     from application.io.pg_io import IO as pg_IO
@@ -22,12 +24,10 @@ except ImportError:
 
 
 class IO:
-    def __init__(self, masted_ships: MastedShipsCounts, board_size: int):
+    def __init__(self):
         self._in_queue : janus.Queue[ActionEvent] = None
         self._out_queue : janus.Queue[ActionEvent] = None
         self._stop = Event()
-        self._board_size = board_size
-        self._masted_counts = masted_ships
 
         if ON_PC:
             self._io : pg_IO = None
@@ -153,10 +153,24 @@ class IO:
         tile = (x,y)
 
         await self.put_out_action(ActionEvent(OutActions.HoverShips,tile, DisplayBoard.Ships))
-    
-    def start(self) -> None:
+
+    async def handle_messages(self, message: GameMessage, result: Optional[GameMessage]) -> None:
+        match message.data.type_:
+            case AttackResult.type_:
+                await self.player_attack_result(message.data)
+            case AttackRequest.type_:
+                await self.opponent_attack_result(result.data)
+            case PossibleAttack.type_:
+                await self.opponent_possible_attack(message.data)
+            case _:
+                raise ValueError()
+
+    def start(self, masted_ships: MastedShipsCounts, board_size: int) -> None:
         self._in_queue = janus.Queue()
         self._out_queue = janus.Queue()
+        self._board_size = board_size
+        self._masted_counts = masted_ships
+
         if ON_PC:
             self._io = pg_IO(self._board_size, self._in_queue.sync_q, self._out_queue.sync_q, self._stop)
             self._io_t = Thread(target=self._io.run)
