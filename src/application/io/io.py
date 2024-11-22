@@ -6,12 +6,14 @@ from typing import Tuple, Optional
 from threading import Thread
 from application.io.actions import InActions, OutActions, ActionEvent, DisplayBoard
 from domain.field import Field
-from domain.boards import ShipsBoard
-from domain.ships import MastedShips
+from domain.boards import ShipsBoard, LaunchedShipCollidesError
+from domain.ships import MastedShips, ShipBiggerThanAllowedError, ShipCountNotConformingError
 from config import MastedShipsCounts
 from domain.attacks import AttackRequest, AttackResult, AttackResultStatus, PossibleAttack
 
-from config import CONFIG
+from config import CONFIG, get_logger
+
+logger = get_logger(__name__)
 
 if CONFIG.mode == "pygame":
     from application.io.pg_io import IO as pg_IO
@@ -78,11 +80,19 @@ class IO:
                     try:
                         ships = ShipsBoard.build_ships_from_fields(ships_fields)
                         masted_ships = MastedShips.from_set(ships, self._masted_counts)
+                        test_board = ShipsBoard()
+                        test_board.add_ships(masted_ships)
                         break
-                    except ValueError as err:
-                        print(err)
-                        print(self._masted_counts)
-                        # TODO inform player that ships are placed incorrectly
+                    except LaunchedShipCollidesError as ex:
+                        logger.warning(ex.colliding_fields)
+                        # TODO blink colliding fields
+                    except ShipBiggerThanAllowedError as ex:
+                        logger.warning(ex.ship)
+                        # TODO blink ship
+                    except ShipCountNotConformingError as ex:
+                        logger.exception(ex.ships)
+                        # TODO blink ships
+
 
         except asyncio.CancelledError:
             pass
