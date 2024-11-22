@@ -11,16 +11,14 @@ from domain.ships import MastedShips
 from config import MastedShipsCounts
 from domain.attacks import AttackRequest, AttackResult, AttackResultStatus, PossibleAttack
 
-try:   # distinguish pc and rpi by presence of pygame
-    from application.io.pg_io import IO as pg_IO
-    print("Pygame IO")
-    ON_PC = True
+from config import CONFIG
 
-except ImportError:
+if CONFIG.mode == "pygame":
+    from application.io.pg_io import IO as pg_IO
+
+elif CONFIG.mode == "rgbled":
     from application.io.led_display import Display
     from application.io.rpi_input import Rpi_Input
-    print("RPI IO")
-    ON_PC = False
 
 
 class IO:
@@ -29,10 +27,10 @@ class IO:
         self._out_queue : janus.Queue[ActionEvent] = None
         self._stop = Event()
 
-        if ON_PC:
+        if CONFIG.mode == "pygame":
             self._io : pg_IO = None
             self._io_t : Thread = None
-        else:
+        elif CONFIG.mode == "rgbled":
             self._display : Display = None
             self._out_t : Thread = None
             self._input : Rpi_Input = None
@@ -171,29 +169,30 @@ class IO:
         self._board_size = board_size
         self._masted_counts = masted_ships
 
-        if ON_PC:
+        if CONFIG.mode == "pygame":
             self._io = pg_IO(self._board_size, self._in_queue.sync_q, self._out_queue.sync_q, self._stop)
             self._io_t = Thread(target=self._io.run)
             self._io_t.start()
-        else:
+        elif CONFIG.mode == "rgbled":
             self._display = Display(self._board_size, self._out_queue.sync_q, self._stop)
             self._input = Rpi_Input(self._board_size, self._in_queue.sync_q, self._stop)
             self._in_t = Thread(target=self._input.run)
             self._out_t = Thread(target=self._display.run)
             self._in_t.start()
             self._out_t.start()
+        else:
+            raise NotImplementedError(f"IO class started in incorrect mode: {CONFIG.mode}")
     
     def stop(self) -> None:
         self._stop.set()
         
-        if ON_PC:
+        if CONFIG.mode == "pygame":
             self._io_t.join()
-        else:
+        elif CONFIG.mode == "rgbled":
             self._in_t.join()
             self._out_t.join()
 
         self.clear()
-        print(" IO finished")
     
     def has_finished(self) -> bool:
         return self._stop.is_set()
@@ -217,7 +216,7 @@ class IO:
         self.stop()
     
     def clear(self) -> None:
-        if not ON_PC:
+        if CONFIG.mode == "rgbled":
             self._display.clear()
 
 if __name__ == '__main__':
