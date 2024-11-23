@@ -27,6 +27,12 @@ class PgConfig:
     tile_border : pg.math.Vector2
     blink_duration_ms : int
     color_map : dict[OutActions | ExtraColors, pg.Color]
+    up_buttons : set[int]
+    down_buttons : set[int]
+    left_buttons : set[int]
+    right_buttons : set[int]
+    select_buttons : set[int]
+    confirm_buttons : set[int]
 
 PG_CONFIG: Final = PgConfig(
     caption = "Battleships PC Client",
@@ -59,7 +65,13 @@ PG_CONFIG: Final = PgConfig(
         ExtraColors.BoardBg : pg.Color('azure4'),
         ExtraColors.MarkerCenter : pg.Color('springgreen4'),
         ExtraColors.MarkerAxis : pg.Color('springgreen')
-    }
+    },
+    up_buttons = {pg.K_w, pg.K_UP},
+    down_buttons = {pg.K_s, pg.K_DOWN},
+    left_buttons = {pg.K_a, pg.K_LEFT},
+    right_buttons = {pg.K_d, pg.K_RIGHT},
+    select_buttons = {pg.K_SPACE},
+    confirm_buttons = {pg.K_f}
 )
 
 class IO:
@@ -111,7 +123,7 @@ class IO:
 
     
     def _handle_pg_marker_keydown(self, event : pg.event.Event) -> bool:
-        if event.key == pg.K_SPACE:
+        if event.key in PG_CONFIG.select_buttons:
             if self._shooting:
                 self._try_put_in_queue(
                     ActionEvent(InActions.Select, self._shots_marker_pos, DisplayBoard.Shots)
@@ -126,16 +138,16 @@ class IO:
 
         marker_diff = (0,0)
 
-        if event.key == pg.K_w:
+        if event.key in PG_CONFIG.up_buttons:
             marker_diff = (0,-1)
 
-        elif event.key == pg.K_s:
+        elif event.key in PG_CONFIG.down_buttons:
             marker_diff = (0,1)
 
-        elif event.key == pg.K_a:
+        elif event.key in PG_CONFIG.left_buttons:
             marker_diff = (-1,0)
             
-        elif event.key == pg.K_d:
+        elif event.key in PG_CONFIG.right_buttons:
             marker_diff = (1,0)
         
         if marker_diff == (0,0):
@@ -211,7 +223,7 @@ class IO:
         
         elif event.type == pg.KEYDOWN:
             if self._handle_pg_marker_keydown(event): return
-            if event.key == pg.K_f:
+            if event.key in PG_CONFIG.confirm_buttons:
                 self._try_put_in_queue(ActionEvent(InActions.Confirm))
 
     def _handle_output_event(self, event : ActionEvent) -> None:
