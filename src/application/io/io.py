@@ -230,11 +230,11 @@ class IO:
         if game_info.opponent.ready and not self._opponent_ready:
             await self.put_out_action(ActionEvent(InfoActions.OpponentReady))
     
-    def won(self, who: Literal["Player", "Opponent"]) -> None:
+    async def won(self, who: Literal["Player", "Opponent"]) -> None:
         if who == "Player":
-            self.put_out_action(ActionEvent(InfoActions.PlayerWon))
+            await self.put_out_action(ActionEvent(InfoActions.PlayerWon))
         elif who == "Opponent":
-            self.put_out_action(ActionEvent(InfoActions.OpponentWon))
+            await self.put_out_action(ActionEvent(InfoActions.OpponentWon))
     
     def stop(self) -> None:
         self._stop.set()

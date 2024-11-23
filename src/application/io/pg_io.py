@@ -388,16 +388,16 @@ class PgBoard:
         self._player_ready = ready
     
     def _draw_wait_for_connect(self) -> None:
-        pass
+        pg.draw.rect(self._screen, pg.Color("chartreuse4"), self._rect)
 
     def _draw_disconnected(self) -> None:
-        pass
+        pg.draw.rect(self._screen, pg.Color("red"), self._rect)
 
     def _draw_won(self) -> None:
-        pass
+        pg.draw.rect(self._screen, pg.Color("gold"), self._rect)
 
     def _draw_lost(self) -> None:
-        pass
+        pg.draw.rect(self._screen, pg.Color("saddlebrown"), self._rect)
 
     def _draw_normal(self, marker : tuple[int, int]) -> None:
         if self._player_ready:
