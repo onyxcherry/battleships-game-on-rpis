@@ -1,10 +1,10 @@
 import asyncio
 from threading import Event
-from application.messaging import GameMessage
+from application.messaging import GameMessage, GameInfo
 import janus
-from typing import Tuple, Optional
+from typing import Literal, Optional
 from threading import Thread
-from application.io.actions import InActions, OutActions, ActionEvent, DisplayBoard
+from application.io.actions import InActions, OutActions, ActionEvent, DisplayBoard, InfoActions
 from domain.field import Field
 from domain.boards import ShipsBoard, LaunchedShipCollidesError
 from domain.ships import MastedShips, ShipBiggerThanAllowedError, ShipCountNotConformingError
@@ -28,6 +28,9 @@ class IO:
         self._in_queue : janus.Queue[ActionEvent] = None
         self._out_queue : janus.Queue[ActionEvent] = None
         self._stop = Event()
+
+        self._opponent_connected = False
+        self._opponent_ready = False
 
         if CONFIG.mode == "pygame":
             self._io : pg_IO = None
@@ -186,25 +189,52 @@ class IO:
             case _:
                 raise ValueError()
 
-    def start(self, masted_ships: MastedShipsCounts, board_size: int) -> None:
+    def begin(self) -> None:
         self._in_queue = janus.Queue()
         self._out_queue = janus.Queue()
-        self._board_size = board_size
-        self._masted_counts = masted_ships
 
         if CONFIG.mode == "pygame":
-            self._io = pg_IO(self._board_size, self._in_queue.sync_q, self._out_queue.sync_q, self._stop)
+            self._io = pg_IO(self._in_queue.sync_q, self._out_queue.sync_q, self._stop)
             self._io_t = Thread(target=self._io.run)
             self._io_t.start()
         elif CONFIG.mode == "rgbled":
-            self._display = Display(self._board_size, self._out_queue.sync_q, self._stop)
-            self._input = Rpi_Input(self._board_size, self._in_queue.sync_q, self._stop)
+            self._display = Display(self._out_queue.sync_q, self._stop)
+            self._input = Rpi_Input(self._in_queue.sync_q, self._stop)
             self._in_t = Thread(target=self._input.run)
             self._out_t = Thread(target=self._display.run)
             self._in_t.start()
             self._out_t.start()
         else:
             raise NotImplementedError(f"IO class started in not supported mode: {CONFIG.mode}")
+
+    async def player_connected(self, masted_ships: MastedShipsCounts, board_size: int) -> None:
+        self._board_size = board_size
+        self._masted_counts = masted_ships
+
+        if CONFIG.mode == "pygame":
+            self._io.set_board_size(board_size)
+        elif CONFIG.mode == "rgbled":
+            self._display.set_board_size(board_size)
+        
+        await self.put_out_action(ActionEvent(InfoActions.PlayerConnected))
+    
+    async def react_to(self, game_info : GameInfo) -> None:
+        if game_info.opponent is None:
+            return
+        if game_info.opponent.connected and not self._opponent_connected:
+            self._opponent_connected = True
+            await self.put_out_action(ActionEvent(InfoActions.OpponentConnected))
+        if self._opponent_connected and not game_info.opponent.connected:
+            self._opponent_connected = False
+            await self.put_out_action(ActionEvent(InfoActions.OpponentDisconnected))
+        if game_info.opponent.ready and not self._opponent_ready:
+            await self.put_out_action(ActionEvent(InfoActions.OpponentReady))
+    
+    def won(self, who: Literal["Player", "Opponent"]) -> None:
+        if who == "Player":
+            self.put_out_action(ActionEvent(InfoActions.PlayerWon))
+        elif who == "Opponent":
+            self.put_out_action(ActionEvent(InfoActions.OpponentWon))
     
     def stop(self) -> None:
         self._stop.set()
@@ -222,7 +252,7 @@ class IO:
 
     async def test_run(self) -> None:
 
-        self.start()
+        self.player_connected()
 
         test_place_ships_task = asyncio.create_task(self.get_masted_ships())
         ships_task_p = False

@@ -58,7 +58,7 @@ class DisplayBoard(enum.StrEnum):
 
 @dataclass(frozen=True)
 class ActionEvent:
-    action : InActions | OutActions
+    action : InActions | OutActions | InfoActions
     tile : Optional[tuple[int, int]] = None
     board : Optional[DisplayBoard] = None
 

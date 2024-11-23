@@ -18,8 +18,8 @@ class Display:
 
         BOARD_BORDER = 5
     
-    def __init__(self, board_size : int, output_queue : janus.SyncQueue[ActionEvent], stop_running : Event):
-        self._board_size = board_size
+    def __init__(self, output_queue : janus.SyncQueue[ActionEvent], stop_running : Event):
+        self._board_size = -1
         self._out_queue = output_queue
         self._stop_running = stop_running
 
@@ -56,6 +56,9 @@ class Display:
         self._shots_led_board : LED_Board = LED_Board(18, self._color_map, self._board_size)
         sleep(0.5)
         self._ships_led_board : LED_Board = LED_Board(13, self._color_map, self._board_size)
+    
+    def set_board_size(self, size : int):
+        self._board_size = size
     
     def _handle_output_event(self, event : ActionEvent) -> None:
         if event.action == OutActions.PlaceShips:

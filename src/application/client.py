@@ -132,6 +132,9 @@ async def play():
     placed_ships_info_sent: bool = False
     inf_event = EventInforming()
 
+    if CONFIG.mode != "terminal":
+        game_io.begin()
+
     async with connect(
         server_address, ping_interval=None, ping_timeout=ping_timeout
     ) as ws:
@@ -148,10 +151,11 @@ async def play():
         )
 
         if CONFIG.mode != "terminal":
-            game_io.start(
+            await game_io.player_connected(
                 masted_ships=current_game_info.masted_ships,
                 board_size=current_game_info.board_size,
             )
+            await game_io.react_to(current_game_info)
 
         placing_ships_task = asyncio.create_task(place_ships(game))
 
@@ -164,6 +168,8 @@ async def play():
             else:
                 current_game_info = parse_game_info(data)
                 inf_event.react_to(current_game_info)
+                if CONFIG.mode != "terminal":
+                    await game_io.react_to(current_game_info)
 
             if placing_ships_task.done() and not placed_ships_info_sent:
                 client_info = ClientInfo(
@@ -265,6 +271,8 @@ async def play():
             else:
                 current_game_info = parse_game_info(data)
                 inf_event.react_to(current_game_info)
+                if CONFIG.mode != "terminal":
+                    await game_io.react_to(current_game_info)
 
             if current_game_info.status == GameStatus.Ended:
                 logger.info("Game was ended")
@@ -273,9 +281,10 @@ async def play():
                     and current_game_info.extra.you_won
                 ):
                     logger.info("You've won! Congratulations!")
-                    inf_event.won(
-                        "Player" if current_game_info.extra.you_won else "Opponent"
-                    )
+                    who_won = "Player" if current_game_info.extra.you_won else "Opponent"
+                    inf_event.won(who_won)
+                    if CONFIG.mode != "terminal":
+                        await game_io.won(who_won)
                 await ws.close()
                 break
 
