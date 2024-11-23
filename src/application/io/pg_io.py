@@ -16,7 +16,6 @@ class ExtraColors(enum.StrEnum):
     MarkerAxis = "MarkerAxis"
 
     Water = "Water"
-    WavingMast = "WavingMast"
     AroundDestroyed = "AroundDestroyed"
 
 @dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
@@ -120,9 +119,9 @@ class IO:
                 
         color = PG_CONFIG.color_map[event.action]
         if event.board == DisplayBoard.Shots:
-            self._shots_pg_board.blink_tile(event.tile, color)
+            self._shots_pg_board.blink_cell(event.tile, color)
         elif event.board == DisplayBoard.Ships:
-            self._ships_pg_board.blink_tile(event.tile, color)
+            self._ships_pg_board.blink_cell(event.tile, color)
     
     def _color_event(self, event : ActionEvent) -> None:
         if not event.action in PG_CONFIG.color_map:
@@ -434,9 +433,9 @@ class PgBoard:
             case PgBoard.Mode.DISCONNECTED:
                 self._draw_disconnected()
             case PgBoard.Mode.WON:
-                self._draw_won
+                self._draw_won()
             case PgBoard.Mode.LOST:
-                self._draw_lost
+                self._draw_lost()
 
     def get_cell_from_mousecoords(self, pos : tuple[int, int]) -> tuple[int,int]:
         rel_pos = (pos[0] - self._rect.x, pos[1] - self._rect.y)
@@ -457,7 +456,7 @@ class PgBoard:
     def change_cell(self, pos : tuple[int, int], color : pg.Color) -> None:
         self._tiles[pos[1]][pos[0]].color = color
     
-    def blink_tile(self, pos : tuple[int, int], color : pg.Color) -> None:
+    def blink_cell(self, pos : tuple[int, int], color : pg.Color) -> None:
         rect = self._tiles[pos[1]][pos[0]].rect
         tile = PgBoard.PgTile(rect,color)
         current_time = pg.time.get_ticks()

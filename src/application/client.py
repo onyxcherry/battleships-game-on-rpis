@@ -211,9 +211,12 @@ async def play():
                     except TimeoutError:
                         continue
 
-                field_to_attack, attack_is_real = (
+                res = (
                     next_attack_or_possible_attack_task.result()
                 )
+                if res is None:
+                    continue
+                field_to_attack, attack_is_real = res
                 next_attack_or_possible_attack_task = None
                 if not attack_is_real:
                     message = Game.possible_attack_of(field_to_attack)

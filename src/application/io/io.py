@@ -215,6 +215,7 @@ class IO:
             self._io.set_board_size(board_size)
         elif CONFIG.mode == "rgbled":
             self._display.set_board_size(board_size)
+            self._input.set_board_size(board_size)
         
         await self.put_out_action(ActionEvent(InfoActions.PlayerConnected))
     
