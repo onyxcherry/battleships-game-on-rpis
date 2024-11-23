@@ -84,14 +84,27 @@ class IO:
                         test_board.add_ships(masted_ships)
                         break
                     except LaunchedShipCollidesError as ex:
-                        logger.warning(ex.colliding_fields)
-                        # TODO blink colliding fields
+                        logger.debug(f"Colliding fields: {ex.colliding_fields}")
+                        for field in ex.colliding_fields:
+                            y, x = field.vector_from_zeros
+                            await self.put_out_action(
+                                ActionEvent(OutActions.BlinkShips, (x, y), DisplayBoard.Ships)
+                            )
                     except ShipBiggerThanAllowedError as ex:
-                        logger.warning(ex.ship)
-                        # TODO blink ship
+                        logger.debug(f"Ship bigger than allowed: {ex.ship}")
+                        for field in ex.ship.fields:
+                            y, x = field.vector_from_zeros
+                            await self.put_out_action(
+                                ActionEvent(OutActions.BlinkShips, (x, y), DisplayBoard.Ships)
+                            )
                     except ShipCountNotConformingError as ex:
-                        logger.exception(ex.ships)
-                        # TODO blink ships
+                        logger.debug(f"Wrong ship count: {ex.ships}")
+                        for ship in ex.ships:
+                            for field in ship.fields:
+                                y, x = field.vector_from_zeros
+                                await self.put_out_action(
+                                    ActionEvent(OutActions.BlinkShips, (x, y), DisplayBoard.Ships)
+                                )
 
 
         except asyncio.CancelledError:
@@ -191,7 +204,7 @@ class IO:
             self._in_t.start()
             self._out_t.start()
         else:
-            raise NotImplementedError(f"IO class started in incorrect mode: {CONFIG.mode}")
+            raise NotImplementedError(f"IO class started in not supported mode: {CONFIG.mode}")
     
     def stop(self) -> None:
         self._stop.set()

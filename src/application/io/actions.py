@@ -13,6 +13,8 @@ class InActions(enum.StrEnum):
 class OutActions(enum.StrEnum):
     UnknownShots = "UnknownShots"
 
+    BlinkShips = "BlinkShips"
+
     HoverShots = "HoverShots"
     HoverShips = "HoverShips"
 
