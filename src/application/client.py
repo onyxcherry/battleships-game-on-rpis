@@ -23,8 +23,6 @@ from domain.client.game import Game
 from application.io.io import IO
 from typing import Optional
 
-server_address = "ws://localhost:4200"
-
 
 logger = get_logger(__name__)
 
@@ -132,6 +130,7 @@ async def play():
     placed_ships_info_sent: bool = False
     inf_event = EventInforming()
 
+    server_address = f"ws://{CONFIG.server_host}:{CONFIG.server_port}"
     logger.info(f"Will try to connect to {server_address}")
     async with connect(
         server_address, ping_interval=None, ping_timeout=ping_timeout
