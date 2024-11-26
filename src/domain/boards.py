@@ -27,10 +27,16 @@ class ShipsBoard:
         self._opponent_possible_attack: Optional[Field] = None
 
     @property
+    def ships(self) -> list[Ship]:
+        return sorted(set(self._ships.values()))
+
+    @property
+    def floating_ships(self) -> list[Ship]:
+        return sorted([ship for ship in self.ships if ship.waving_masts_count > 0])
+
+    @property
     def ships_floating_count(self) -> int:
-        ships = set(self._ships.values())
-        floating_ships = [ship for ship in ships if ship.waving_masts_count > 0]
-        return len(floating_ships)
+        return len(self.floating_ships)
 
     def add_ship(self, ship: Ship) -> None:
         colliding_fields = []
@@ -71,7 +77,7 @@ class ShipsBoard:
         shot_fields = set()
         shot_down_fields = set()
         missed = self._opponent_missed
-        for ship in list(self._ships.values()):
+        for ship in self.ships:
             if ship.status == ShipStatus.Wrecked:
                 shot_down_fields |= ship.fields
             else:

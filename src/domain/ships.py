@@ -2,7 +2,7 @@ import enum
 from config import MastedShipsCounts
 from domain.attacks import AttackResultStatus
 from domain.field import Field
-from typing import Final, Self
+from typing import Final, Optional, Self
 from pydantic.dataclasses import dataclass
 import copy
 
@@ -23,6 +23,7 @@ class Ship:
         self._fields: Final = fields
         self._parts_floating = copy.deepcopy(fields)
         self._parts_wrecked: set[Field] = set()
+        self._coastal_zone: Optional[set[Field]] = None
 
     @property
     def original_masts_count(self) -> int:
@@ -51,10 +52,6 @@ class Ship:
         elif self.waving_masts_count < self.original_masts_count:
             return ShipStatus.ShotButFloats
         return ShipStatus.FullyOperational
-
-    @property
-    def fields_with_coastal_zone(self) -> set[Field]:
-        return self._fields.union(self._infer_coastal_zone())
 
     @property
     def _properties(self) -> tuple[frozenset, frozenset, frozenset]:
@@ -102,6 +99,16 @@ class Ship:
                 if adjacent_field not in self._fields:
                     coastal_zone.add(adjacent_field)
         return coastal_zone
+
+    @property
+    def coastal_zone(self) -> set[Field]:
+        if self._coastal_zone is None:
+            self._coastal_zone = self._infer_coastal_zone()
+        return self._coastal_zone
+
+    @property
+    def fields_with_coastal_zone(self) -> set[Field]:
+        return self._fields.union(self.coastal_zone)
 
     def attack(self, field: Field) -> AttackResultStatus:
         if field not in self._parts_floating:

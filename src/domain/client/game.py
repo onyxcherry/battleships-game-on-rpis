@@ -4,7 +4,7 @@ from application.messaging import GameMessage
 from domain.attacks import AttackRequest, AttackResult, PossibleAttack
 from domain.field import Field
 from domain.boards import ShipsBoard, ShotsBoard
-from domain.ships import MastedShips
+from domain.ships import MastedShips, Ship
 from config import MastedShipsCounts
 from dataclasses import dataclass
 
@@ -46,6 +46,10 @@ class Game:
     @property
     def all_ships_wrecked(self) -> bool:
         return self._ships_board.ships_floating_count == 0
+
+    @property
+    def ships(self) -> list[Ship]:
+        return self._ships_board.ships
 
     def attack(self, field: Field) -> GameMessage:
         self._attacks_board.add_attack(field, "Unknown")
