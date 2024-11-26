@@ -177,7 +177,7 @@ class MastedShips:
             if len(ships) != expected_count:
                 raise ShipCountNotConformingError(
                     f"Improper count (provided {len(ships)} ships) of single masts"
-                    + f"(expected {expected_count})",
+                    + f" (expected {expected_count})",
                     ships=ships,
                 )
 
