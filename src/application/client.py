@@ -280,7 +280,6 @@ async def play():
                 break
 
     inf_event.player_disconnected()
-    stop_all()
 
 
 async def main():
