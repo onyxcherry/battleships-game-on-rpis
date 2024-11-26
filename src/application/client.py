@@ -132,6 +132,7 @@ async def play():
     placed_ships_info_sent: bool = False
     inf_event = EventInforming()
 
+    logger.info(f"Will try to connect to {server_address}")
     async with connect(
         server_address, ping_interval=None, ping_timeout=ping_timeout
     ) as ws:
@@ -284,22 +285,36 @@ async def play():
 
 
 async def main():
-    play_task = asyncio.create_task(play())
-    try:
-        done, _ = await asyncio.wait([play_task], return_when=asyncio.FIRST_EXCEPTION)
-    except asyncio.CancelledError:
-        logger.info("Playing cancelled, exiting...")
-        stop_all()
-        return
+    attempt_count = 0
 
-    res = done.pop().result()
-    if isinstance(res, Exception):
-        logger.exception(res)
-    elif isinstance(res, BaseException):
-        logger.error("Handled BaseException")
-        logger.exception(res)
-    elif res is not None:
-        logger.info(f"Result: {res}")
+    while True:
+        play_task = asyncio.create_task(play())
+        try:
+            done, _ = await asyncio.wait(
+                [play_task], return_when=asyncio.FIRST_EXCEPTION
+            )
+        except asyncio.CancelledError:
+            logger.info("Playing cancelled, exiting...")
+            stop_all()
+            return
+        try:
+            res = done.pop().result()
+        except ConnectionRefusedError as ex:
+            logger.error(ex)
+        except Exception as ex:
+            logger.error("Handled Exception")
+            logger.exception(ex)
+        except BaseException as ex:
+            logger.error("Handled BaseException")
+            logger.exception(ex)
+        else:
+            if res is not None:
+                logger.info(f"Result: {res}")
+            else:
+                logger.info("Returned None")
+        waiting_time = 0.01 * 2**attempt_count if attempt_count <= 8 else 3.0
+        attempt_count += 1
+        await asyncio.sleep(waiting_time)
 
 
 if __name__ == "__main__":
