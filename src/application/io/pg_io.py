@@ -3,6 +3,7 @@ import janus
 import enum
 from typing import Final
 from application.io.actions import InActions, OutActions, InfoActions, ActionEvent, DisplayBoard
+from application.io.pg_img import Animation
 from threading import Event as th_Event
 from pydantic.dataclasses import dataclass
 from pydantic import ConfigDict
@@ -33,6 +34,10 @@ class PgConfig:
     right_buttons : set[int]
     select_buttons : set[int]
     confirm_buttons : set[int]
+    wait_for_connect_anim : Animation
+    disconnected_anim : Animation
+    won_anim : Animation
+    lost_anim : Animation
 
 PG_CONFIG: Final = PgConfig(
     caption = "Battleships PC Client",
@@ -72,7 +77,11 @@ PG_CONFIG: Final = PgConfig(
     left_buttons = {pg.K_a, pg.K_LEFT},
     right_buttons = {pg.K_d, pg.K_RIGHT},
     select_buttons = {pg.K_SPACE},
-    confirm_buttons = {pg.K_f}
+    confirm_buttons = {pg.K_f},
+    wait_for_connect_anim = Animation("ship.png", 350),
+    disconnected_anim = Animation("gnome.png", 500),
+    won_anim = Animation("trophy.png", 400),
+    lost_anim = Animation("ship_sink.png", 350)
 )
 
 class IO:
@@ -330,6 +339,11 @@ class IO:
         ))
         self._clock = pg.time.Clock()
 
+        PG_CONFIG.wait_for_connect_anim.load()
+        PG_CONFIG.disconnected_anim.load()
+        PG_CONFIG.won_anim.load()
+        PG_CONFIG.lost_anim.load()
+
         self._shots_pg_board = PgBoard(self._screen, PG_CONFIG.board_margin)
         self._ships_pg_board = PgBoard(
             self._screen,
@@ -387,16 +401,24 @@ class PgBoard:
         self._player_ready = ready
     
     def _draw_wait_for_connect(self) -> None:
-        pg.draw.rect(self._screen, pg.Color("chartreuse4"), self._rect)
+        img = PG_CONFIG.wait_for_connect_anim.get_current_frame()
+        img = pg.transform.scale(img, self._rect.size)
+        self._screen.blit(img, self._rect)
 
     def _draw_disconnected(self) -> None:
-        pg.draw.rect(self._screen, pg.Color("red"), self._rect)
+        img = PG_CONFIG.disconnected_anim.get_current_frame()
+        img = pg.transform.scale(img, self._rect.size)
+        self._screen.blit(img, self._rect)
 
     def _draw_won(self) -> None:
-        pg.draw.rect(self._screen, pg.Color("gold"), self._rect)
+        img = PG_CONFIG.won_anim.get_current_frame()
+        img = pg.transform.scale(img, self._rect.size)
+        self._screen.blit(img, self._rect)
 
     def _draw_lost(self) -> None:
-        pg.draw.rect(self._screen, pg.Color("saddlebrown"), self._rect)
+        img = PG_CONFIG.lost_anim.get_current_frame()
+        img = pg.transform.scale(img, self._rect.size)
+        self._screen.blit(img, self._rect)
 
     def _draw_normal(self, marker : tuple[int, int]) -> None:
         if self._player_ready:

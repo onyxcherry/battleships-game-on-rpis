@@ -22,6 +22,7 @@ from websockets.asyncio.client import connect
 from domain.client.game import Game
 from application.io.io import IO
 from typing import Optional
+from time import sleep
 
 
 logger = get_logger(__name__)
@@ -280,18 +281,17 @@ async def play():
 
             if current_game_info.status == GameStatus.Ended:
                 logger.info("Game was ended")
-                if (
-                    current_game_info.extra is not None
-                    and current_game_info.extra.you_won
-                ):
-                    logger.info("You've won! Congratulations!")
+                if current_game_info.extra is not None:
+                    if current_game_info.extra.you_won:
+                        logger.info("You've won! Congratulations!")
                     who_won = "Player" if current_game_info.extra.you_won else "Opponent"
                     inf_event.won(who_won)
                     if CONFIG.mode != "terminal":
                         await game_io.won(who_won)
+                    sleep(5)
                 await ws.close()
                 break
-
+    
     inf_event.player_disconnected()
 
 
