@@ -5,10 +5,12 @@ from pydantic.dataclasses import dataclass
 from typing import Literal, Optional
 from domain.field import Field
 
+
 class InActions(enum.StrEnum):
     Select = "Select"
     Hover = "Hover"
     Confirm = "Confirm"
+
 
 class OutActions(enum.StrEnum):
     UnknownShots = "UnknownShots"
@@ -36,10 +38,11 @@ class OutActions(enum.StrEnum):
     PlaceShips = "PlaceShips"
     FinishedPlacing = "FinishedPlacing"
 
+
 class InfoActions(enum.StrEnum):
     PlayerConnected = "PlayerConnected"
     OpponentConnected = "OpponentConnected"
-    
+
     PlayerDisconnected = "PlayerDisconnected"
     OpponentDisconnected = "OpponentDisconnected"
 
@@ -49,6 +52,7 @@ class InfoActions(enum.StrEnum):
     PlayerWon = "PlayerWon"
     OpponentWon = "OpponentWon"
 
+
 class DisplayBoard(enum.StrEnum):
     Ships = "Ships"
     Shots = "Shots"
@@ -56,11 +60,12 @@ class DisplayBoard(enum.StrEnum):
     ShotsBorder = "ShotsBorder"
     Extra = "Extra"
 
+
 @dataclass(frozen=True)
 class ActionEvent:
-    action : InActions | OutActions | InfoActions
-    tile : Optional[tuple[int, int]] = None
-    board : Optional[DisplayBoard] = None
+    action: InActions | OutActions | InfoActions
+    tile: Optional[tuple[int, int]] = None
+    board: Optional[DisplayBoard] = None
 
     @property
     def field(self) -> Optional[Field]:
