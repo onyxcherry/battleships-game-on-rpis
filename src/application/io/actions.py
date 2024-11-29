@@ -13,6 +13,8 @@ class InActions(enum.StrEnum):
 class OutActions(enum.StrEnum):
     UnknownShots = "UnknownShots"
 
+    BlinkShips = "BlinkShips"
+
     HoverShots = "HoverShots"
     HoverShips = "HoverShips"
 
@@ -56,7 +58,7 @@ class DisplayBoard(enum.StrEnum):
 
 @dataclass(frozen=True)
 class ActionEvent:
-    action : InActions | OutActions
+    action : InActions | OutActions | InfoActions
     tile : Optional[tuple[int, int]] = None
     board : Optional[DisplayBoard] = None
 

@@ -1,70 +1,111 @@
 import pygame as pg
 import janus
-from enum import Enum
-from typing import List, Tuple, Dict
-from application.io.actions import InActions, OutActions, ActionEvent, DisplayBoard
+import enum
+from typing import Final
+from application.io.actions import InActions, OutActions, InfoActions, ActionEvent, DisplayBoard
 from threading import Event as th_Event
+from pydantic.dataclasses import dataclass
+from pydantic import ConfigDict
+
+class ExtraColors(enum.StrEnum):
+    MainBg = "MainBg"
+    BoardBgReady = "BoardBgReady"
+    BoardBgNotReady = "BoardBgNotReady"
+    
+    MarkerCenter = "MarkerCenter"
+    MarkerAxis = "MarkerAxis"
+
+    Water = "Water"
+    AroundDestroyed = "AroundDestroyed"
+
+@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class PgConfig:
+    caption : str
+    dest_fps : int
+    board_margin : pg.math.Vector2
+    board_display_size : pg.math.Vector2
+    tile_border : pg.math.Vector2
+    blink_duration_ms : int
+    color_map : dict[OutActions | ExtraColors, pg.Color]
+    up_buttons : set[int]
+    down_buttons : set[int]
+    left_buttons : set[int]
+    right_buttons : set[int]
+    select_buttons : set[int]
+    confirm_buttons : set[int]
+
+PG_CONFIG: Final = PgConfig(
+    caption = "Battleships PC Client",
+    dest_fps = 60,
+    board_margin = pg.math.Vector2(20,20),
+    board_display_size = pg.math.Vector2(400,400),
+    tile_border = pg.math.Vector2(2,2),
+    blink_duration_ms = 500,
+    color_map = {
+        OutActions.UnknownShots : pg.Color('chartreuse4'),
+
+        OutActions.HitShips : pg.Color('red'),
+        OutActions.HitShots : pg.Color('red'),
+
+        OutActions.DestroyedShips : pg.Color('red4'),
+        OutActions.DestroyedShots : pg.Color('red4'),
+        
+        OutActions.MissShips : pg.Color('blueviolet'),
+        OutActions.MissShots : pg.Color('blueviolet'),
+
+        ExtraColors.Water : pg.Color('aqua'),
+        OutActions.NoShip : pg.Color('aqua'),
+        OutActions.Ship : pg.Color('gray20'),
+
+        OutActions.BlinkShips : pg.Color('red'),
+
+        ExtraColors.AroundDestroyed : pg.Color('royalblue'),
+
+        ExtraColors.MainBg : pg.Color('aquamarine'),
+        ExtraColors.BoardBgReady : pg.Color('azure4'),
+        ExtraColors.BoardBgNotReady : pg.Color('bisque'),
+        ExtraColors.MarkerCenter : pg.Color('springgreen4'),
+        ExtraColors.MarkerAxis : pg.Color('springgreen')
+    },
+    up_buttons = {pg.K_w, pg.K_UP},
+    down_buttons = {pg.K_s, pg.K_DOWN},
+    left_buttons = {pg.K_a, pg.K_LEFT},
+    right_buttons = {pg.K_d, pg.K_RIGHT},
+    select_buttons = {pg.K_SPACE},
+    confirm_buttons = {pg.K_f}
+)
 
 class IO:
 
-    BOARD_MARGIN = pg.math.Vector2(20,20)
-    BOARD_DISPLAY_SIZE = pg.math.Vector2(400,400)
-    TILE_BORDER = pg.math.Vector2(2,2)
-
-    class ExtraColors(Enum):
-        MAIN_BG = 1
-        BOARD_BG = 2
-        
-        MARKER_CENTER = 3
-        MARKER_AXIS = 4
-
-        WATER = 5
-        WAVING_MAST = 6
-        AROUND_DESTROYED = 7
-
-
-    def __init__(self, board_size : int, input_queue : janus.SyncQueue[ActionEvent], output_queue : janus.SyncQueue[ActionEvent], stop_running : th_Event):
-        self._board_size = board_size
+    def __init__(self, input_queue : janus.SyncQueue[ActionEvent], output_queue : janus.SyncQueue[ActionEvent], stop_running : th_Event):
+        self._board_size = -1
         self._in_queue = input_queue
         self._out_queue = output_queue
         self._stop_running = stop_running
-        self._FPS = 60
 
         self._shots_pg_board : PgBoard = None
         self._ships_pg_board : PgBoard = None
 
+        self._show_player_board = False
+        self._show_opponent_board = False
+
         self._place_ships = False
         self._shooting = False
 
-        self._ships_marker_pos : Tuple[int, int] = (0, 0)
-        self._shots_marker_pos : Tuple[int, int] = (-1, -1)
+        self._ships_marker_pos : tuple[int, int] = (0, 0)
+        self._shots_marker_pos : tuple[int, int] = (-1, -1)
 
-        self._ships_internal_marker_pos : Tuple[int, int] = (-1,-1)
-        self._shots_internal_marker_pos : Tuple[int, int] = (-1,-1)
+        self._ships_internal_marker_pos : tuple[int, int] = (-1,-1)
+        self._shots_internal_marker_pos : tuple[int, int] = (-1,-1)
+    
+    def set_board_size(self, size : int) -> None:
+        self._board_size = size
 
-        self._color_map = {
-            OutActions.UnknownShots : pg.Color('chartreuse4'),
+    def _init_boards(self) -> None:
+        self._ships_pg_board.set_size(self._board_size)
+        self._shots_pg_board.set_size(self._board_size)
 
-            OutActions.HitShips : pg.Color('red'),
-            OutActions.HitShots : pg.Color('red'),
-
-            OutActions.DestroyedShips : pg.Color('red4'),
-            OutActions.DestroyedShots : pg.Color('red4'),
-            
-            OutActions.MissShips : pg.Color('blueviolet'),
-            OutActions.MissShots : pg.Color('blueviolet'),
-
-            IO.ExtraColors.WATER : pg.Color('aqua'),
-            OutActions.NoShip : pg.Color('aqua'),
-            OutActions.Ship : pg.Color('gray20'),
-
-            IO.ExtraColors.AROUND_DESTROYED : pg.Color('royalblue'),
-
-            IO.ExtraColors.MAIN_BG : pg.Color('aquamarine'),
-            IO.ExtraColors.BOARD_BG : pg.Color('azure4'),
-            IO.ExtraColors.MARKER_CENTER : pg.Color('springgreen4'),
-            IO.ExtraColors.MARKER_AXIS : pg.Color('springgreen')
-        }
+        self._ships_pg_board.set_mode(PgBoard.Mode.NORMAL)
     
     def _try_put_in_queue(self, event : ActionEvent) -> None:
         try:
@@ -72,8 +113,30 @@ class IO:
         except janus.SyncQueueFull:
             print("out queue full!")
     
+    def _blink_event(self, event : ActionEvent) -> None:
+        if not event.action in PG_CONFIG.color_map:
+            return
+                
+        color = PG_CONFIG.color_map[event.action]
+        if event.board == DisplayBoard.Shots:
+            self._shots_pg_board.blink_cell(event.tile, color)
+        elif event.board == DisplayBoard.Ships:
+            self._ships_pg_board.blink_cell(event.tile, color)
+    
+    def _color_event(self, event : ActionEvent) -> None:
+        if not event.action in PG_CONFIG.color_map:
+            return
+        
+        color = PG_CONFIG.color_map[event.action]
+
+        if event.board == DisplayBoard.Shots:
+            self._shots_pg_board.change_cell(event.tile, color)
+        elif event.board == DisplayBoard.Ships:
+            self._ships_pg_board.change_cell(event.tile, color)
+
+    
     def _handle_pg_marker_keydown(self, event : pg.event.Event) -> bool:
-        if event.key == pg.K_SPACE:
+        if event.key in PG_CONFIG.select_buttons:
             if self._shooting:
                 self._try_put_in_queue(
                     ActionEvent(InActions.Select, self._shots_marker_pos, DisplayBoard.Shots)
@@ -88,16 +151,16 @@ class IO:
 
         marker_diff = (0,0)
 
-        if event.key == pg.K_w:
+        if event.key in PG_CONFIG.up_buttons:
             marker_diff = (0,-1)
 
-        elif event.key == pg.K_s:
+        elif event.key in PG_CONFIG.down_buttons:
             marker_diff = (0,1)
 
-        elif event.key == pg.K_a:
+        elif event.key in PG_CONFIG.left_buttons:
             marker_diff = (-1,0)
             
-        elif event.key == pg.K_d:
+        elif event.key in PG_CONFIG.right_buttons:
             marker_diff = (1,0)
         
         if marker_diff == (0,0):
@@ -131,10 +194,13 @@ class IO:
         return True
     
     def _handle_pg_input_event(self, event : pg.event.Event) -> None:
+        if not self._show_player_board:
+            return
+
         if event.type == pg.MOUSEMOTION:
             pos=event.pos
             if self._shooting:
-                tile : Tuple[int,int] = self._shots_pg_board.get_cell_from_mousecoords(pos)
+                tile : tuple[int,int] = self._shots_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
                 if tile == self._shots_internal_marker_pos:
@@ -144,7 +210,7 @@ class IO:
                     ActionEvent(InActions.Hover, tile)
                 )
             elif self._place_ships:
-                tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
+                tile : tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
                 if tile == self._ships_internal_marker_pos:
@@ -157,14 +223,14 @@ class IO:
         elif event.type == pg.MOUSEBUTTONDOWN:
             pos=event.pos
             if self._shooting:
-                tile : Tuple[int,int] = self._shots_pg_board.get_cell_from_mousecoords(pos)
+                tile : tuple[int,int] = self._shots_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
                 self._try_put_in_queue(
                     ActionEvent(InActions.Select, tile)
                 )
             elif self._place_ships:
-                tile : Tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
+                tile : tuple[int,int] = self._ships_pg_board.get_cell_from_mousecoords(pos)
                 if tile == (-1, -1):
                     return
                 self._try_put_in_queue(
@@ -173,44 +239,61 @@ class IO:
         
         elif event.type == pg.KEYDOWN:
             if self._handle_pg_marker_keydown(event): return
-            if event.key == pg.K_f:
+            if event.key in PG_CONFIG.confirm_buttons:
                 self._try_put_in_queue(ActionEvent(InActions.Confirm))
 
     def _handle_output_event(self, event : ActionEvent) -> None:
-        if event.action == OutActions.PlaceShips:
-            self._place_ships = True
-            return
-        
-        if event.action == OutActions.FinishedPlacing:
-            self._place_ships = False
-            self._ships_marker_pos = (-1,-1)
-            return
-        
-        if event.action == OutActions.PlayerTurn:
-            self._shooting = True
-            return
-        
-        if event.action == OutActions.OpponentTurn:
-            self._shooting = False
-            return
 
-        if event.action == OutActions.HoverShots:
-            self._shots_marker_pos = event.tile
-            return
+        match event.action:
+            case InfoActions.PlayerConnected:
+                self._show_player_board = True
+                self._init_boards()
+            
+            case InfoActions.PlayerDisconnected:
+                self._show_player_board = False
+            
+            case InfoActions.OpponentConnected:
+                self._show_opponent_board = True
+                self._shots_pg_board.set_mode(PgBoard.Mode.NORMAL)
+            
+            case InfoActions.OpponentDisconnected:
+                self._show_opponent_board = False
+                self._shots_pg_board.set_mode(PgBoard.Mode.DISCONNECTED)
+            
+            case InfoActions.OpponentReady:
+                self._shots_pg_board.set_ready(True)
 
-        if event.action == OutActions.HoverShips:
-            self._ships_marker_pos = event.tile
-            return
+            case InfoActions.PlayerWon:
+                self._ships_pg_board.set_mode(PgBoard.Mode.WON)
 
-        if not event.action in self._color_map:
-            return
-        
-        color = self._color_map[event.action]
+            case InfoActions.OpponentWon:
+                self._shots_pg_board.set_mode(PgBoard.Mode.LOST)
 
-        if event.board == DisplayBoard.Shots:
-            self._shots_pg_board.change_cell(event.tile, color)
-        elif event.board == DisplayBoard.Ships:
-            self._ships_pg_board.change_cell(event.tile, color)
+            case OutActions.PlaceShips:
+                self._place_ships = True
+
+            case OutActions.FinishedPlacing:
+                self._place_ships = False
+                self._ships_marker_pos = (-1,-1)
+                self._ships_pg_board.set_ready(True)
+
+            case OutActions.PlayerTurn:
+                self._shooting = True
+
+            case OutActions.OpponentTurn:
+                self._shooting = False
+
+            case OutActions.HoverShots:
+                self._shots_marker_pos = event.tile
+
+            case OutActions.HoverShips:
+                self._ships_marker_pos = event.tile
+
+            case OutActions.BlinkShips:
+                self._blink_event(event)
+
+            case _:
+                self._color_event(event)
 
 
     def _draw(self) -> None:
@@ -232,51 +315,94 @@ class IO:
                 except janus.SyncQueueEmpty:
                     break
 
-            self._screen.fill(self._color_map[IO.ExtraColors.MAIN_BG])
+            self._screen.fill(PG_CONFIG.color_map[ExtraColors.MainBg])
             self._draw()
             pg.display.flip()
-            self._clock.tick(self._FPS)
+            self._clock.tick(PG_CONFIG.dest_fps)
     
     def run(self) -> None:
         pg.init()
 
-        pg.display.set_caption("Battleships PC Client")
-        self._screen : pg.Surface = pg.display.set_mode((2*IO.BOARD_MARGIN.x+IO.BOARD_DISPLAY_SIZE.x, 4*IO.BOARD_MARGIN.y+2*IO.BOARD_DISPLAY_SIZE.y))
+        pg.display.set_caption(PG_CONFIG.caption)
+        self._screen = pg.display.set_mode((
+            2 * PG_CONFIG.board_margin.x + PG_CONFIG.board_display_size.x,
+            4 * PG_CONFIG.board_margin.y + 2 * PG_CONFIG.board_display_size.y
+        ))
         self._clock = pg.time.Clock()
 
-        self._shots_pg_board = PgBoard(self._screen, IO.BOARD_MARGIN, self._board_size, self._color_map)
-        self._ships_pg_board = PgBoard(self._screen, pg.math.Vector2(IO.BOARD_MARGIN.x, 3*IO.BOARD_MARGIN.y+IO.BOARD_DISPLAY_SIZE.y), self._board_size, self._color_map)
+        self._shots_pg_board = PgBoard(self._screen, PG_CONFIG.board_margin)
+        self._ships_pg_board = PgBoard(
+            self._screen,
+            pg.math.Vector2(
+                PG_CONFIG.board_margin.x,
+                3 * PG_CONFIG.board_margin.y + PG_CONFIG.board_display_size.y
+            )
+        )
 
         self._game_loop()
         pg.quit()
 
 
 class PgBoard:
+    class Mode(enum.Enum):
+        WAIT_FOR_CONNECT = 0
+        NORMAL = 1
+        DISCONNECTED = 2
+        WON = 3
+        LOST = 4
+
     class PgTile:
         def __init__(self, rect : pg.Rect, color : pg.Color):
             self.rect = rect
             self.color = color
 
-    def __init__(self, screen : pg.surface.Surface, pos : pg.math.Vector2, board_size : int, color_map : Dict[OutActions | IO.ExtraColors, pg.Color]):
+    def __init__(self, screen : pg.surface.Surface, pos : pg.math.Vector2):
         self._screen = screen
-        self._rect = pg.Rect(pos, IO.BOARD_DISPLAY_SIZE + (IO.TILE_BORDER * 2))
+        self._rect = pg.Rect(pos, PG_CONFIG.board_display_size + (PG_CONFIG.tile_border * 2))
+        self._size = -1
+        self._mode : PgBoard.Mode = PgBoard.Mode.WAIT_FOR_CONNECT
+        self._player_ready = False
+    
+    def set_size(self, board_size : int) -> None:
         self._size = board_size
-        self._tilesize = IO.BOARD_DISPLAY_SIZE / self._size
-        self._color_map = color_map
+        self._tilesize = PG_CONFIG.board_display_size / self._size
 
-        self._tiles : List[List[PgBoard.PgTile]] = []
+        self._blinking_tiles : dict[PgBoard.PgTile, int] = dict()
+
+        self._tiles : list[list[PgBoard.PgTile]] = []
         for y in range(self._size):
-            row : List[PgBoard.PgTile] = []
+            row : list[PgBoard.PgTile] = []
             for x in range(self._size):
                 rect = pg.Rect(
-                    self._rect.topleft + (self._tilesize.elementwise() * pg.math.Vector2(x,y) + (IO.TILE_BORDER * 2)),
-                    self._tilesize - (IO.TILE_BORDER * 2)
+                    self._rect.topleft + (self._tilesize.elementwise() * pg.math.Vector2(x,y) + (PG_CONFIG.tile_border * 2)),
+                    self._tilesize - (PG_CONFIG.tile_border * 2)
                 )
-                row.append(PgBoard.PgTile(rect, self._color_map[IO.ExtraColors.WATER]))
+                row.append(PgBoard.PgTile(rect, PG_CONFIG.color_map[ExtraColors.Water]))
             self._tiles.append(row)
     
-    def draw(self, marker : Tuple[int, int]) -> None:
-        pg.draw.rect(self._screen, self._color_map[IO.ExtraColors.BOARD_BG], self._rect)
+    def set_mode(self, mode : Mode) -> None:
+        self._mode = mode
+    
+    def set_ready(self, ready : bool) -> None:
+        self._player_ready = ready
+    
+    def _draw_wait_for_connect(self) -> None:
+        pg.draw.rect(self._screen, pg.Color("chartreuse4"), self._rect)
+
+    def _draw_disconnected(self) -> None:
+        pg.draw.rect(self._screen, pg.Color("red"), self._rect)
+
+    def _draw_won(self) -> None:
+        pg.draw.rect(self._screen, pg.Color("gold"), self._rect)
+
+    def _draw_lost(self) -> None:
+        pg.draw.rect(self._screen, pg.Color("saddlebrown"), self._rect)
+
+    def _draw_normal(self, marker : tuple[int, int]) -> None:
+        if self._player_ready:
+            pg.draw.rect(self._screen, PG_CONFIG.color_map[ExtraColors.BoardBgReady], self._rect)
+        else:
+            pg.draw.rect(self._screen, PG_CONFIG.color_map[ExtraColors.BoardBgNotReady], self._rect)
         for y in range(self._size):
             for x in range(self._size):
                 pg_tile = self._tiles[y][x]
@@ -285,12 +411,33 @@ class PgBoard:
                     row_match = x == marker[0]
                     col_match = y == marker[1]
                     if row_match and col_match:
-                        draw_color = draw_color.lerp(self._color_map[IO.ExtraColors.MARKER_CENTER], 0.5)
+                        draw_color = draw_color.lerp(PG_CONFIG.color_map[ExtraColors.MarkerCenter], 0.5)
                     elif row_match or col_match:
-                        draw_color = draw_color.lerp(self._color_map[IO.ExtraColors.MARKER_AXIS], 0.5)
+                        draw_color = draw_color.lerp(PG_CONFIG.color_map[ExtraColors.MarkerAxis], 0.5)
                 pg.draw.rect(self._screen, draw_color, pg_tile.rect)
+        
+        current_time = pg.time.get_ticks()
+        self._blinking_tiles = {
+            pg_tile: time for pg_tile, time in self._blinking_tiles.items() if current_time - time < PG_CONFIG.blink_duration_ms
+        }
 
-    def get_cell_from_mousecoords(self, pos : Tuple[int, int]) -> Tuple[int,int]:
+        for pg_tile in self._blinking_tiles:
+            pg.draw.rect(self._screen, pg_tile.color, pg_tile.rect)
+    
+    def draw(self, marker : tuple[int, int] = (-1,-1)) -> None:
+        match self._mode:
+            case PgBoard.Mode.WAIT_FOR_CONNECT:
+                self._draw_wait_for_connect()
+            case PgBoard.Mode.NORMAL:
+                self._draw_normal(marker)
+            case PgBoard.Mode.DISCONNECTED:
+                self._draw_disconnected()
+            case PgBoard.Mode.WON:
+                self._draw_won()
+            case PgBoard.Mode.LOST:
+                self._draw_lost()
+
+    def get_cell_from_mousecoords(self, pos : tuple[int, int]) -> tuple[int,int]:
         rel_pos = (pos[0] - self._rect.x, pos[1] - self._rect.y)
         cell = (int(rel_pos[0] // self._tilesize.x), int(rel_pos[1] // self._tilesize.y))
 
@@ -299,12 +446,18 @@ class PgBoard:
         
         cell_off = (rel_pos[0] - self._tilesize.x * cell[0], rel_pos[1] - self._tilesize.y * cell[1])
     
-        if cell_off[0] < IO.TILE_BORDER.x or cell_off[0] > self._tilesize.x - IO.TILE_BORDER.x \
-            or cell_off[1] < IO.TILE_BORDER.y or cell_off[1] > self._tilesize.y - IO.TILE_BORDER.y:
+        if cell_off[0] < PG_CONFIG.tile_border.x or cell_off[0] > self._tilesize.x - PG_CONFIG.tile_border.x \
+            or cell_off[1] < PG_CONFIG.tile_border.y or cell_off[1] > self._tilesize.y - PG_CONFIG.tile_border.y:
             
             return (-1, -1)
         
         return cell
 
-    def change_cell(self, pos : Tuple[int, int], color : pg.Color) -> None:
+    def change_cell(self, pos : tuple[int, int], color : pg.Color) -> None:
         self._tiles[pos[1]][pos[0]].color = color
+    
+    def blink_cell(self, pos : tuple[int, int], color : pg.Color) -> None:
+        rect = self._tiles[pos[1]][pos[0]].rect
+        tile = PgBoard.PgTile(rect,color)
+        current_time = pg.time.get_ticks()
+        self._blinking_tiles[tile] = current_time

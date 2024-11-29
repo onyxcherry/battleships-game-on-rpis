@@ -5,10 +5,11 @@ from application.io.actions import InActions, ActionEvent
 from threading import Event
 
 class Rpi_Input:
-    def __init__(self, board_size : int, input_queue : janus.SyncQueue[ActionEvent], stop_running : Event):
-        self._board_size = board_size
+    def __init__(self, input_queue : janus.SyncQueue[ActionEvent], stop_running : Event):
+        self._board_size = -1
         self._input_queue = input_queue
         self._stop_running = stop_running
+        self._active = False
 
         ## temp, will be replaced by joystick
         self._up_button = gp.Button(8, bounce_time=0.05)
@@ -28,8 +29,15 @@ class Rpi_Input:
         self._confirm_button = gp.Button(22, bounce_time=0.05)
 
         self._marker_pos : Tuple[int, int] = (0, 0)
+    
+    def set_board_size(self, size : int):
+        self._board_size = size
+        self._active = True
+        print("joooooooo")
 
     def _marker_button_pressed(self, button) -> None:
+        if not self._active:
+            return
         direction = self._directions[button]
 
         self._marker_pos = (
@@ -41,10 +49,14 @@ class Rpi_Input:
         self._input_queue.put(ActionEvent(InActions.Hover,self._marker_pos))
     
     def _select_button_pressed(self) -> None:
+        if not self._active:
+            return
         print(ActionEvent(InActions.Select,self._marker_pos))
         self._input_queue.put(ActionEvent(InActions.Select,self._marker_pos))
     
     def _confirm_button_pressed(self) -> None:
+        if not self._active:
+            return
         print(ActionEvent(InActions.Hover,self._marker_pos))
         self._input_queue.put(ActionEvent(InActions.Confirm))
 
