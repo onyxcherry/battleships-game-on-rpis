@@ -80,19 +80,10 @@ class IO:
                         ships_fields.add(event.field)
 
                 elif event.action == InActions.Confirm:
+                    ships = ShipsBoard.build_ships_from_fields(ships_fields)
+                    test_board = ShipsBoard()
                     try:
-                        ships = ShipsBoard.build_ships_from_fields(ships_fields)
-                        masted_ships = MastedShips.from_set(ships, self._masted_counts)
-                        test_board = ShipsBoard()
-                        test_board.add_ships(masted_ships)
-                        break
-                    except LaunchedShipCollidesError as ex:
-                        logger.debug(f"Colliding fields: {ex.colliding_fields}")
-                        for field in ex.colliding_fields:
-                            y, x = field.vector_from_zeros
-                            await self.put_out_action(
-                                ActionEvent(OutActions.BlinkShips, (x, y), DisplayBoard.Ships)
-                            )
+                        masted_ships = MastedShips.from_set(ships, self._masted_counts)    
                     except ShipBiggerThanAllowedError as ex:
                         logger.debug(f"Ship bigger than allowed: {ex.ship}")
                         for field in ex.ship.fields:
@@ -100,6 +91,7 @@ class IO:
                             await self.put_out_action(
                                 ActionEvent(OutActions.BlinkShips, (x, y), DisplayBoard.Ships)
                             )
+                        continue
                     except ShipCountNotConformingError as ex:
                         logger.debug(f"Wrong ship count: {ex.ships}")
                         for ship in ex.ships:
@@ -108,6 +100,21 @@ class IO:
                                 await self.put_out_action(
                                     ActionEvent(OutActions.BlinkShips, (x, y), DisplayBoard.Ships)
                                 )
+                        continue
+                    
+                    try:
+                        test_board.add_ships(masted_ships)
+                    except LaunchedShipCollidesError as ex:
+                        logger.debug(f"Colliding fields: {ex.colliding_fields}")
+                        for field in ex.colliding_fields:
+                            y, x = field.vector_from_zeros
+                            await self.put_out_action(
+                                ActionEvent(OutActions.BlinkShips, (x, y), DisplayBoard.Ships)
+                            )
+                        masted_ships = None
+                        continue
+                    
+                    break
 
 
         except asyncio.CancelledError:
