@@ -131,9 +131,6 @@ async def play():
     placed_ships_info_sent: bool = False
     inf_event = EventInforming()
 
-    if CONFIG.mode != "terminal":
-        game_io.begin()
-
     server_address = f"ws://{CONFIG.server_host}:{CONFIG.server_port}"
     logger.info(f"Will try to connect to {server_address}")
 
@@ -296,6 +293,9 @@ async def play():
 
 
 async def main():
+    if CONFIG.mode != "terminal":
+        game_io.begin()
+
     attempt_count = 0
 
     while True:
