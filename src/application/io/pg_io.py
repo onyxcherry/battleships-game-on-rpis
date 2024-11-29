@@ -68,7 +68,7 @@ PG_CONFIG: Final = PgConfig(
 
         ExtraColors.MainBg : pg.Color('aquamarine'),
         ExtraColors.BoardBgReady : pg.Color('azure4'),
-        ExtraColors.BoardBgNotReady : pg.Color('bisque'),
+        ExtraColors.BoardBgNotReady : pg.Color('bisque4'),
         ExtraColors.MarkerCenter : pg.Color('springgreen4'),
         ExtraColors.MarkerAxis : pg.Color('springgreen')
     },
