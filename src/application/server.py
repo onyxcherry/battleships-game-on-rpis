@@ -216,9 +216,13 @@ async def listen(websocket: ServerConnection):
 
 async def main():
     async with serve(
-        listen, "0.0.0.0", 4200, ping_interval=None, ping_timeout=ping_timeout
+        listen,
+        CONFIG.server_host,
+        CONFIG.server_port,
+        ping_interval=None,
+        ping_timeout=ping_timeout,
     ):
-        await asyncio.get_running_loop().create_future()  # run forever
+        await asyncio.get_running_loop().create_future()
 
 
 if __name__ == "__main__":
