@@ -1,3 +1,11 @@
+[project]
+name = 'battleships-game-on-rpis'
+version = "0.1"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [tool.black]
 line-length = 88
 target-version = ['py310']
@@ -6,3 +14,6 @@ include = '\.py$'
 
 [tool.isort]
 profile = "black"
+
+[tool.setuptools.package-data]
+"application.io.resources" = ['*']
