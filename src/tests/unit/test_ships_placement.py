@@ -24,6 +24,39 @@ def tests_sorting_fields():
     ]
 
 
+def tests_infering_coastal_zone_of_ship():
+    ship = Ship.from_parts(
+        waving={
+            Field("G7"),
+            Field("F5"),
+            Field("G5"),
+            Field("G6"),
+            Field("E5"),
+        },
+        wrecked=set(),
+    )
+    expected_coastal_zone = {
+        Field("D4"),
+        Field("D5"),
+        Field("D6"),
+        Field("E4"),
+        Field("E6"),
+        Field("F4"),
+        Field("F6"),
+        Field("F7"),
+        Field("F8"),
+        Field("G4"),
+        Field("G8"),
+        Field("H4"),
+        Field("H5"),
+        Field("H6"),
+        Field("H7"),
+        Field("H8"),
+    }
+
+    assert ship.coastal_zone == expected_coastal_zone
+
+
 def tests_adding_to_ships_board_masted_ships_of_standard_count():
     ships = ships_of_standard_count()
     ships_board = ShipsBoard()

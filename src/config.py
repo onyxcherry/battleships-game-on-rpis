@@ -42,10 +42,14 @@ class MastedShipsCounts:
 
 @dataclass(frozen=True)
 class Config:
+    server_host: str
+    server_port: int
     mode: Literal["terminal", "pygame", "rgbled"]
     logging_level: Literal["DEBUG", "INFO", "WARNING"]
     masted_ships_counts = MastedShipsCounts(single=1, two=1, three=1, four=0)
     board_size = 10
 
 
-CONFIG: Final = Config(mode="pygame", logging_level="DEBUG")
+CONFIG: Final = Config(
+    server_host="localhost", server_port=4200, mode="pygame", logging_level="DEBUG"
+)
