@@ -36,19 +36,23 @@ connect_attempt_count = 0
 placing_ships_task: Optional[asyncio.Task] = None
 next_attack_or_possible_attack_task: Optional[asyncio.Task] = None
 
+show_possible_attacks = False
+
 
 async def receive(websocket) -> dict:
     data = await websocket.recv()
     decoded = decode_json_message(data)
     formatted = pprint.pformat(decoded, indent=2)
-    logger.debug(f"Received: {formatted}")
+    if "PossibleAttack" not in formatted or show_possible_attacks:
+        logger.debug(f"Received: {formatted}")
     return decoded
 
 
 async def send(websocket, data: Serializable) -> None:
     await websocket.send(data.stringify())
     formatted = pprint.pformat(data.serialize(), indent=2)
-    logger.debug(f"Sent: {formatted}")
+    if "PossibleAttack" not in formatted or show_possible_attacks:
+        logger.debug(f"Sent: {formatted}")
 
 
 async def place_ships(game: Game) -> None:
