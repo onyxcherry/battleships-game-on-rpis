@@ -15,14 +15,14 @@ from application.messaging import (
     GameMessage,
     parse_game_message_or_info,
 )
-from config import get_logger, CONFIG
+from config import CLIENT_CONFIG, get_logger, CONFIG
 from domain.field import Field
 from domain.ships import MastedShips, ships_of_standard_count
+from websockets import ConnectionClosedError, ConnectionClosedOK
 from websockets.asyncio.client import connect
 from domain.client.game import Game
 from application.io.io import IO
 from typing import Optional
-from time import sleep
 
 
 logger = get_logger(__name__)
@@ -30,6 +30,8 @@ logger = get_logger(__name__)
 ping_timeout = False
 
 game_io = IO()
+
+connect_attempt_count = 0
 
 placing_ships_task: Optional[asyncio.Task] = None
 next_attack_or_possible_attack_task: Optional[asyncio.Task] = None
@@ -118,6 +120,7 @@ def stop_all():
 async def play():
     global placing_ships_task
     global next_attack_or_possible_attack_task
+    global connect_attempt_count
 
     starting_client_info = ClientInfo(
         uniqid=uuid4(),
@@ -139,6 +142,7 @@ async def play():
     ) as ws:
         inf_event.player_connected()
         await send(ws, starting_client_info)
+        connect_attempt_count = 0
 
         data = await receive(ws)
         current_game_info = parse_game_info(data)
@@ -293,10 +297,10 @@ async def play():
 
 
 async def main():
+    global connect_attempt_count
+
     if CONFIG.mode != "terminal":
         game_io.begin()
-
-    attempt_count = 0
 
     while True:
         play_task = asyncio.create_task(play())
@@ -312,6 +316,10 @@ async def main():
             res = done.pop().result()
         except ConnectionRefusedError as ex:
             logger.error(ex)
+        except ConnectionClosedOK as ex:
+            logger.warning(f"Client disconnected (OK): {ex}")
+        except ConnectionClosedError as ex:
+            logger.error(f"Client disconnected (ERROR): {ex}")
         except Exception as ex:
             logger.error("Handled Exception")
             logger.exception(ex)
@@ -323,10 +331,15 @@ async def main():
                 logger.info(f"Result: {res}")
             else:
                 logger.info("Returned None")
-        waiting_time = 0.01 * 2**attempt_count if attempt_count <= 8 else 3.0
-        attempt_count += 1
-        await asyncio.sleep(waiting_time)
 
+        waiting_seconds = (
+            0.05 * 2**connect_attempt_count if connect_attempt_count <= 8 else 3.0
+        )
+        connect_attempt_count += 1
+        if waiting_seconds >= CLIENT_CONFIG.min_duration_to_show_animation_in_seconds:
+            await game_io.player_disconnected()
+
+        await asyncio.sleep(waiting_seconds)
 
 if __name__ == "__main__":
     asyncio.run(main())
