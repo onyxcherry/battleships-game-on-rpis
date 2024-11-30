@@ -160,7 +160,6 @@ async def play():
     async with connect(
         server_address, ping_interval=None, ping_timeout=ping_timeout
     ) as ws:
-        inf_event.player_connected()
         await send(ws, starting_client_info)
         connect_attempt_count = 0
 
