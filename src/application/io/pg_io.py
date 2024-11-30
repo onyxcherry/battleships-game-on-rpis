@@ -1,7 +1,7 @@
 import pygame as pg
 import janus
 import enum
-from typing import Final
+from typing import Final, Optional
 from application.io.actions import (
     InActions,
     OutActions,
@@ -139,6 +139,10 @@ class IO:
             self._shots_pg_board.blink_cell(event.tile, color)
         elif event.board == DisplayBoard.Ships:
             self._ships_pg_board.blink_cell(event.tile, color)
+        elif event.board == DisplayBoard.ShipsBorder:
+            self._ships_pg_board.blink_border(color)
+        elif event.board == DisplayBoard.ShotsBorder:
+            self._ships_pg_board.blink_border(color)
 
     def _color_event(self, event: ActionEvent) -> None:
         if not event.action in PG_CONFIG.color_map:
@@ -404,6 +408,7 @@ class PgBoard:
         self._tilesize = PG_CONFIG.board_display_size / self._size
 
         self._blinking_tiles: dict[PgBoard.PgTile, int] = dict()
+        self._blinking_border: Optional[tuple[pg.Color, int]] = None
 
         self._tiles: list[list[PgBoard.PgTile]] = []
         for y in range(self._size):
@@ -447,7 +452,9 @@ class PgBoard:
         self._screen.blit(img, self._rect)
 
     def _draw_normal(self, marker: tuple[int, int]) -> None:
-        if self._player_ready:
+        if self._blinking_border:
+            pg.draw.rect(self._screen, self._blinking_border[0], self._rect)
+        elif self._player_ready:
             pg.draw.rect(
                 self._screen, PG_CONFIG.color_map[ExtraColors.BoardBgReady], self._rect
             )
@@ -480,6 +487,12 @@ class PgBoard:
             for pg_tile, time in self._blinking_tiles.items()
             if current_time - time < PG_CONFIG.blink_duration_ms
         }
+
+        if (
+            self._blinking_border
+            and current_time - self._blinking_border[1] >= PG_CONFIG.blink_duration_ms
+        ):
+            self._blinking_border = None
 
         for pg_tile in self._blinking_tiles:
             pg.draw.rect(self._screen, pg_tile.color, pg_tile.rect)
@@ -531,3 +544,7 @@ class PgBoard:
         tile = PgBoard.PgTile(rect, color)
         current_time = pg.time.get_ticks()
         self._blinking_tiles[tile] = current_time
+
+    def blink_border(self, color: pg.Color) -> None:
+        current_time = pg.time.get_ticks()
+        self._blinking_border = (color, current_time)

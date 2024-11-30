@@ -115,6 +115,16 @@ class IO:
                         continue
                     except ShipCountNotConformingError as ex:
                         logger.debug(f"Wrong ship count: {ex.ships}")
+                        if len(ex.ships) == 0:
+                            logger.debug("Blinking board border")
+                            await self.put_out_action(
+                                ActionEvent(
+                                    OutActions.BlinkShips,
+                                    None,
+                                    DisplayBoard.ShipsBorder,
+                                )
+                            )
+                            continue
                         for ship in ex.ships:
                             for field in ship.fields:
                                 y, x = field.vector_from_zeros
@@ -183,7 +193,7 @@ class IO:
         action: OutActions = {
             AttackResultStatus.Missed: OutActions.MissShots,
             AttackResultStatus.Shot: OutActions.HitShots,
-            AttackResultStatus.AlreadyShot: OutActions.HitShots,  # TODO inform player
+            AttackResultStatus.AlreadyShot: OutActions.HitShots,
             AttackResultStatus.ShotDown: OutActions.DestroyedShots,
         }[AttackResultStatus[result.status]]
 
@@ -196,7 +206,7 @@ class IO:
         action: OutActions = {
             AttackResultStatus.Missed: OutActions.MissShips,
             AttackResultStatus.Shot: OutActions.HitShips,
-            AttackResultStatus.AlreadyShot: OutActions.HitShips,  # TODO inform player
+            AttackResultStatus.AlreadyShot: OutActions.HitShips,
             AttackResultStatus.ShotDown: OutActions.DestroyedShips,
         }[AttackResultStatus[result.status]]
 

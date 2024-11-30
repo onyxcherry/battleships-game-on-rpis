@@ -16,6 +16,7 @@ class OutActions(enum.StrEnum):
     UnknownShots = "UnknownShots"
 
     BlinkShips = "BlinkShips"
+    BlinkShots = "BlinkShots"
 
     HoverShots = "HoverShots"
     HoverShips = "HoverShips"
