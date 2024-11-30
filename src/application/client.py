@@ -112,6 +112,22 @@ async def get_possible_or_real_attack() -> Optional[tuple[Field, bool]]:
         return await game_io.get_possible_or_real_attack()
 
 
+def cancel_running_user_tasks() -> None:
+    if (
+        placing_ships_task is not None
+        and not placing_ships_task.done()
+        and not placing_ships_task.cancelled()
+    ):
+        placing_ships_task.cancel()
+
+    if (
+        next_attack_or_possible_attack_task is not None
+        and not next_attack_or_possible_attack_task.done()
+        and not next_attack_or_possible_attack_task.cancelled()
+    ):
+        next_attack_or_possible_attack_task.cancel()
+
+
 def stop_all():
     if CONFIG.mode != "terminal":
         game_io.stop()
@@ -339,6 +355,7 @@ async def main():
         if waiting_seconds >= CLIENT_CONFIG.min_duration_to_show_animation_in_seconds:
             await game_io.player_disconnected()
 
+        cancel_running_user_tasks()
         await asyncio.sleep(waiting_seconds)
 
 if __name__ == "__main__":
