@@ -233,9 +233,7 @@ async def play():
                     except TimeoutError:
                         continue
 
-                res = (
-                    next_attack_or_possible_attack_task.result()
-                )
+                res = next_attack_or_possible_attack_task.result()
                 if res is None:
                     continue
                 field_to_attack, attack_is_real = res
@@ -304,14 +302,16 @@ async def play():
                 if current_game_info.extra is not None:
                     if current_game_info.extra.you_won:
                         logger.info("You've won! Congratulations!")
-                    who_won = "Player" if current_game_info.extra.you_won else "Opponent"
+                    who_won = (
+                        "Player" if current_game_info.extra.you_won else "Opponent"
+                    )
                     inf_event.won(who_won)
                     if CONFIG.mode != "terminal":
                         await game_io.won(who_won)
-                    sleep(5)
+                await asyncio.sleep(CLIENT_CONFIG.game_ended_state_show_seconds)
                 await ws.close()
                 break
-    
+
     inf_event.player_disconnected()
 
 
@@ -360,6 +360,7 @@ async def main():
 
         cancel_running_user_tasks()
         await asyncio.sleep(waiting_seconds)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
