@@ -19,15 +19,17 @@ from config import get_logger, CONFIG
 from websockets import ConnectionClosedError, ConnectionClosedOK
 from websockets.asyncio.server import serve, ServerConnection
 
-ping_timeout = False
-connected_clients: list[Optional[ServerConnection]] = [None, None]
-client_infos: list[Optional[ClientInfo]] = [None, None]
 logger = get_logger(__name__)
-
 
 ClientNumber = Literal[0, 1]
 ClientName = Literal["FIRST", "SECOND"]
 client_names: Final = ["FIRST", "SECOND"]
+
+ping_timeout = False
+
+connected_clients: list[Optional[ServerConnection]] = [None, None]
+client_infos: list[Optional[ClientInfo]] = [None, None]
+second_client_has_already_connected: bool = False
 
 
 async def receive(websocket) -> dict:
@@ -64,7 +66,8 @@ def get_client_number(websocket: Optional[ServerConnection]) -> Optional[ClientN
 def mark_client_as_disconnected(client_number: ClientNumber) -> None:
     connected_clients[client_number] = None
     client_info = client_infos[client_number]
-    assert client_info is not None
+    if client_info is None:
+        return
     updated_client_info = dataclasses.replace(client_info, connected=False)
     client_infos[client_number] = updated_client_info
 
@@ -156,7 +159,8 @@ async def welcome_second_client(websocket: ServerConnection) -> bool:
 
 
 async def update_game_info() -> bool:
-    assert both_clients_connected()
+    client1_conn = connected_clients[0]
+    assert client1_conn is not None
 
     game_status = GameStatus.WaitingToStart
     if can_game_start():
@@ -181,9 +185,12 @@ async def update_game_info() -> bool:
         opponent=client_infos[1],
         extra=ExtraInfo(you_start_first=True, you_won=first_client_won),
     )
-    sent_to_client0 = await try_send(connected_clients[0], game_info_for_first_client)
+    sent_to_client0 = await try_send(client1_conn, game_info_for_first_client)
     if not sent_to_client0:
         return False
+
+    if not second_client_has_already_connected:
+        return True
 
     game_info_for_second_client = GameInfo(
         masted_ships=CONFIG.masted_ships_counts,
@@ -201,7 +208,9 @@ async def update_game_info() -> bool:
 
 
 async def reset_game() -> None:
-    for client_conn in connected_clients:
+    global second_client_has_already_connected
+    for idx, client_conn in enumerate(connected_clients):
+        client_infos[idx] = None
         if client_conn is None:
             continue
         try:
@@ -209,9 +218,13 @@ async def reset_game() -> None:
         except TimeoutError:
             pass
         # no except ConnectionClosed is needed (see the source of close())
+        connected_clients[idx] = None
+    second_client_has_already_connected = False
 
 
 async def listen(websocket: ServerConnection):
+    global second_client_has_already_connected
+
     if connected_clients[0] is None:
         connected_clients[0] = websocket
         first_client_joined = await welcome_first_client(websocket)
@@ -220,6 +233,7 @@ async def listen(websocket: ServerConnection):
         logger.debug(f"First client connected: {websocket.remote_address}")
     elif connected_clients[1] is None:
         connected_clients[1] = websocket
+        second_client_has_already_connected = True
         second_client_joined = await welcome_second_client(websocket)
         if not second_client_joined:
             return await reset_game()
@@ -262,6 +276,7 @@ async def main():
         ping_interval=None,
         ping_timeout=ping_timeout,
     ):
+        logger.info(f"Server started at {CONFIG.server_host}:{CONFIG.server_port}")
         await asyncio.get_running_loop().create_future()
 
 
