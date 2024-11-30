@@ -24,7 +24,6 @@ class ExtraColors(enum.StrEnum):
     MarkerAxis = "MarkerAxis"
 
     Water = "Water"
-    AroundDestroyed = "AroundDestroyed"
 
 
 @dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
@@ -67,7 +66,8 @@ PG_CONFIG: Final = PgConfig(
         OutActions.NoShip: pg.Color("aqua"),
         OutActions.Ship: pg.Color("gray20"),
         OutActions.BlinkShips: pg.Color("red"),
-        ExtraColors.AroundDestroyed: pg.Color("royalblue"),
+        OutActions.AroundDestroyedShips: pg.Color("royalblue"),
+        OutActions.AroundDestroyedShots: pg.Color("royalblue"),
         ExtraColors.MainBg: pg.Color("aquamarine"),
         ExtraColors.BoardBgReady: pg.Color("azure4"),
         ExtraColors.BoardBgNotReady: pg.Color("bisque4"),
@@ -154,6 +154,7 @@ class IO:
             self._shots_pg_board.change_cell(event.tile, color)
         elif event.board == DisplayBoard.Ships:
             self._ships_pg_board.change_cell(event.tile, color)
+            self._ships_marker_pos = (-1, -1)
 
     def _handle_pg_marker_keydown(self, event: pg.event.Event) -> bool:
         if event.key in PG_CONFIG.select_buttons:

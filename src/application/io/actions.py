@@ -30,6 +30,9 @@ class OutActions(enum.StrEnum):
     DestroyedShots = "DestroyedShots"
     DestroyedShips = "DestroyedShips"
 
+    AroundDestroyedShots = "AroundDestroyedShots"
+    AroundDestroyedShips = "AroundDestroyedShips"
+
     Ship = "Ship"
     NoShip = "NoShip"
 
