@@ -2,11 +2,12 @@ from application.io.led_matrix import LED_Matrix
 from rpi_ws281x import Color, RGBW
 import janus
 import enum
-from typing import Final
+from typing import Final, Optional
 from application.io.actions import OutActions, InfoActions, ActionEvent, DisplayBoard
 from threading import Event
 import time
 from dataclasses import dataclass
+from application.io.led_img import Animation
 
 
 class ExtraColors(enum.StrEnum):
@@ -28,6 +29,10 @@ class LEDConfig:
     matrix_brightness: int
     blink_duration_ms: int
     color_map: dict[OutActions | ExtraColors, RGBW]
+    wait_for_connect_anim: Animation
+    disconnected_anim: Animation
+    won_anim: Animation
+    lost_anim: Animation
 
 
 LED_CONFIG: Final = LEDConfig(
@@ -54,6 +59,10 @@ LED_CONFIG: Final = LEDConfig(
         ExtraColors.BoardBorderReady: Color(0, 0, 255),
         ExtraColors.BoardBorderNotReady: Color(255, 255, 0),
     },
+    wait_for_connect_anim=Animation("ship.png", 350),
+    disconnected_anim=Animation("gnome.png", 500),
+    won_anim=Animation("trophy.png", 400),
+    lost_anim=Animation("ship_sink.png", 350),
 )
 
 
@@ -96,6 +105,10 @@ class Display:
             self._shots_led_board.blink_cell(event.tile, color)
         elif event.board == DisplayBoard.Ships:
             self._ships_led_board.blink_cell(event.tile, color)
+        elif event.board == DisplayBoard.ShipsBorder:
+            self._ships_led_board.blink_border(color)
+        elif event.board == DisplayBoard.ShotsBorder:
+            self._shots_led_board.blink_border(color)
 
     def _color_event(self, event: ActionEvent) -> None:
         if not event.action in LED_CONFIG.color_map:
@@ -117,6 +130,7 @@ class Display:
 
             case InfoActions.PlayerDisconnected:
                 self._show_player_board = False
+                self._ships_led_board.set_mode(LED_Board.Mode.DISCONNECTED)
 
             case InfoActions.OpponentConnected:
                 self._show_opponent_board = True
@@ -162,6 +176,11 @@ class Display:
                 self._color_event(event)
 
     def run(self) -> None:
+        LED_CONFIG.wait_for_connect_anim.load(*LED_CONFIG.matrix_size)
+        LED_CONFIG.disconnected_anim.load(*LED_CONFIG.matrix_size)
+        LED_CONFIG.won_anim.load(*LED_CONFIG.matrix_size)
+        LED_CONFIG.lost_anim.load(*LED_CONFIG.matrix_size)
+
         while not self._stop_running.is_set():
             try:
                 event = self._out_queue.get(timeout=0.1)
@@ -228,6 +247,7 @@ class LED_Board:
             for y in range(self._size)
         ]
         self._blinking_tiles: dict[LED_Board.BlinkingTile, int] = dict()
+        self._blinking_border: Optional[tuple[RGBW, int]] = None
         self._off = (int((16 - self._size) // 2), int((16 - self._size) // 2))
         self._draw_border()
         self.draw((-1, -1))
@@ -239,7 +259,9 @@ class LED_Board:
         self._player_ready = ready
 
     def _draw_border(self) -> None:
-        if self._player_ready:
+        if self._blinking_border:
+            color = self._blinking_border[0]
+        elif self._player_ready:
             color = LED_CONFIG.color_map[ExtraColors.BoardBorderReady]
         else:
             color = LED_CONFIG.color_map[ExtraColors.BoardBorderNotReady]
@@ -277,17 +299,29 @@ class LED_Board:
             current_time
         )
 
+    def blink_border(self, color: RGBW) -> None:
+        current_time = int(time.time() * 1000)
+        self._blinking_border = (color, current_time)
+
+    def draw_img(self, img: list[RGBW]) -> None:
+        for n, c in enumerate(img):
+            self._led_matrix[n] = c
+
     def _draw_wait_for_connect(self) -> None:
-        self._led_matrix.clear(Color(0, 0, 127))
+        # self._led_matrix.clear(Color(0, 0, 127))
+        self.draw_img(LED_CONFIG.wait_for_connect_anim.get_current_frame())
 
     def _draw_disconnected(self) -> None:
-        self._led_matrix.clear(Color(127, 0, 0))
+        # self._led_matrix.clear(Color(127, 0, 0))
+        self.draw_img(LED_CONFIG.disconnected_anim.get_current_frame())
 
     def _draw_won(self) -> None:
-        self._led_matrix.clear(Color(50, 50, 50))
+        # self._led_matrix.clear(Color(50, 50, 50))
+        self.draw_img(LED_CONFIG.won_anim.get_current_frame())
 
     def _draw_lost(self) -> None:
-        self._led_matrix.clear(Color(0, 10, 10))
+        # self._led_matrix.clear(Color(0, 10, 10))
+        self.draw_img(LED_CONFIG.lost_anim.get_current_frame())
 
     def _draw_normal(self, marker: tuple[int, int]) -> None:
         self._draw_border()
@@ -324,6 +358,12 @@ class LED_Board:
             self._led_matrix.setMatrixPixelColor(
                 (tile.x + self._off[0], tile.y + self._off[1]), tile.color
             )
+
+        if (
+            self._blinking_border
+            and current_time - self._blinking_border[1] >= LED_CONFIG.blink_duration_ms
+        ):
+            self._blinking_border = None
 
     def draw(self, marker: tuple[int, int]) -> None:
         self._led_matrix.clear()

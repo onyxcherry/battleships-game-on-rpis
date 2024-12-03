@@ -142,7 +142,7 @@ class IO:
         elif event.board == DisplayBoard.ShipsBorder:
             self._ships_pg_board.blink_border(color)
         elif event.board == DisplayBoard.ShotsBorder:
-            self._ships_pg_board.blink_border(color)
+            self._shots_pg_board.blink_border(color)
 
     def _color_event(self, event: ActionEvent) -> None:
         if not event.action in PG_CONFIG.color_map:
