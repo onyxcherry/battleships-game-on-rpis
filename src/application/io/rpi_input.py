@@ -32,9 +32,9 @@ class Rpi_Input:
         self._marker_pos: Tuple[int, int] = (0, 0)
 
     def set_board_size(self, size: int):
+        self._marker_pos = (0, 0)
         self._board_size = size
         self._active = True
-        print("joooooooo")
 
     def _marker_button_pressed(self, button) -> None:
         if not self._active:

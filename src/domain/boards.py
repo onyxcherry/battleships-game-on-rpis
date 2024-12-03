@@ -180,6 +180,10 @@ class ShotsBoard:
     def notify_added(self) -> None:
         pass
 
+    @property
+    def attacked_fields(self) -> set[Field]:
+        return set(self._attacks.keys())
+
     def represent_graphically(self, size: int) -> str:
         floating_fields = set()
         shot_fields = set()
