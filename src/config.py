@@ -50,6 +50,16 @@ class Config:
     board_size = 10
 
 
+@dataclass(frozen=True)
+class ClientConfig:
+    game_ended_state_show_seconds: float
+    min_duration_to_show_animation_in_seconds: float
+
+
 CONFIG: Final = Config(
     server_host="localhost", server_port=4200, mode="pygame", logging_level="DEBUG"
+)
+
+CLIENT_CONFIG: Final = ClientConfig(
+    game_ended_state_show_seconds=5.0, min_duration_to_show_animation_in_seconds=1.0
 )

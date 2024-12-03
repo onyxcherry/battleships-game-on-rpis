@@ -296,6 +296,8 @@ class IO:
 
         await self.put_out_action(ActionEvent(InfoActions.PlayerConnected))
 
+    async def player_disconnected(self) -> None: ...
+
     async def react_to(self, game_info: GameInfo) -> None:
         if game_info.opponent is None:
             return

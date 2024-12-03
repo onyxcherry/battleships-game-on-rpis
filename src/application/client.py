@@ -15,14 +15,14 @@ from application.messaging import (
     GameMessage,
     parse_game_message_or_info,
 )
-from config import get_logger, CONFIG
+from config import CLIENT_CONFIG, get_logger, CONFIG
 from domain.field import Field
 from domain.ships import MastedShips, ships_of_standard_count
+from websockets import ConnectionClosedError, ConnectionClosedOK
 from websockets.asyncio.client import connect
 from domain.client.game import Game
 from application.io.io import IO
 from typing import Optional
-from time import sleep
 
 
 logger = get_logger(__name__)
@@ -31,22 +31,28 @@ ping_timeout = False
 
 game_io = IO()
 
+connect_attempt_count = 0
+
 placing_ships_task: Optional[asyncio.Task] = None
 next_attack_or_possible_attack_task: Optional[asyncio.Task] = None
+
+show_possible_attacks = False
 
 
 async def receive(websocket) -> dict:
     data = await websocket.recv()
     decoded = decode_json_message(data)
     formatted = pprint.pformat(decoded, indent=2)
-    logger.debug(f"Received: {formatted}")
+    if "PossibleAttack" not in formatted or show_possible_attacks:
+        logger.debug(f"Received: {formatted}")
     return decoded
 
 
 async def send(websocket, data: Serializable) -> None:
     await websocket.send(data.stringify())
     formatted = pprint.pformat(data.serialize(), indent=2)
-    logger.debug(f"Sent: {formatted}")
+    if "PossibleAttack" not in formatted or show_possible_attacks:
+        logger.debug(f"Sent: {formatted}")
 
 
 async def place_ships(game: Game) -> None:
@@ -110,6 +116,22 @@ async def get_possible_or_real_attack() -> Optional[tuple[Field, bool]]:
         return await game_io.get_possible_or_real_attack()
 
 
+def cancel_running_user_tasks() -> None:
+    if (
+        placing_ships_task is not None
+        and not placing_ships_task.done()
+        and not placing_ships_task.cancelled()
+    ):
+        placing_ships_task.cancel()
+
+    if (
+        next_attack_or_possible_attack_task is not None
+        and not next_attack_or_possible_attack_task.done()
+        and not next_attack_or_possible_attack_task.cancelled()
+    ):
+        next_attack_or_possible_attack_task.cancel()
+
+
 def stop_all():
     if CONFIG.mode != "terminal":
         game_io.stop()
@@ -118,6 +140,7 @@ def stop_all():
 async def play():
     global placing_ships_task
     global next_attack_or_possible_attack_task
+    global connect_attempt_count
 
     starting_client_info = ClientInfo(
         uniqid=uuid4(),
@@ -137,8 +160,8 @@ async def play():
     async with connect(
         server_address, ping_interval=None, ping_timeout=ping_timeout
     ) as ws:
-        inf_event.player_connected()
         await send(ws, starting_client_info)
+        connect_attempt_count = 0
 
         data = await receive(ws)
         current_game_info = parse_game_info(data)
@@ -210,9 +233,7 @@ async def play():
                     except TimeoutError:
                         continue
 
-                res = (
-                    next_attack_or_possible_attack_task.result()
-                )
+                res = next_attack_or_possible_attack_task.result()
                 if res is None:
                     continue
                 field_to_attack, attack_is_real = res
@@ -281,22 +302,24 @@ async def play():
                 if current_game_info.extra is not None:
                     if current_game_info.extra.you_won:
                         logger.info("You've won! Congratulations!")
-                    who_won = "Player" if current_game_info.extra.you_won else "Opponent"
+                    who_won = (
+                        "Player" if current_game_info.extra.you_won else "Opponent"
+                    )
                     inf_event.won(who_won)
                     if CONFIG.mode != "terminal":
                         await game_io.won(who_won)
-                    sleep(5)
+                await asyncio.sleep(CLIENT_CONFIG.game_ended_state_show_seconds)
                 await ws.close()
                 break
-    
+
     inf_event.player_disconnected()
 
 
 async def main():
+    global connect_attempt_count
+
     if CONFIG.mode != "terminal":
         game_io.begin()
-
-    attempt_count = 0
 
     while True:
         play_task = asyncio.create_task(play())
@@ -312,6 +335,10 @@ async def main():
             res = done.pop().result()
         except ConnectionRefusedError as ex:
             logger.error(ex)
+        except ConnectionClosedOK as ex:
+            logger.warning(f"Client disconnected (OK): {ex}")
+        except ConnectionClosedError as ex:
+            logger.error(f"Client disconnected (ERROR): {ex}")
         except Exception as ex:
             logger.error("Handled Exception")
             logger.exception(ex)
@@ -323,9 +350,16 @@ async def main():
                 logger.info(f"Result: {res}")
             else:
                 logger.info("Returned None")
-        waiting_time = 0.01 * 2**attempt_count if attempt_count <= 8 else 3.0
-        attempt_count += 1
-        await asyncio.sleep(waiting_time)
+
+        waiting_seconds = (
+            0.05 * 2**connect_attempt_count if connect_attempt_count <= 8 else 3.0
+        )
+        connect_attempt_count += 1
+        if waiting_seconds >= CLIENT_CONFIG.min_duration_to_show_animation_in_seconds:
+            await game_io.player_disconnected()
+
+        cancel_running_user_tasks()
+        await asyncio.sleep(waiting_seconds)
 
 
 if __name__ == "__main__":
