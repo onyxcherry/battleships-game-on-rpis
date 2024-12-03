@@ -12,7 +12,7 @@ from application.io.actions import (
     InfoActions,
 )
 from domain.field import Field
-from domain.boards import ShipsBoard, LaunchedShipCollidesError
+from domain.boards import ShipsBoard, LaunchedShipCollidesError, get_all_ship_fields
 from domain.ships import (
     MastedShips,
     ShipBiggerThanAllowedError,
@@ -47,6 +47,8 @@ class IO:
         self._out_queue: janus.Queue[ActionEvent] = None
         self._stop = Event()
 
+        self._board_size: int = 0
+        self._masted_counts: Optional[MastedShipsCounts] = None
         self._opponent_connected = False
         self._opponent_ready = False
 
@@ -58,6 +60,14 @@ class IO:
             self._out_t: Thread = None
             self._input: Rpi_Input = None
             self._in_t: Thread = None
+
+    def get_valid_tile(self, field: Field) -> Optional[tuple[int, int]]:
+        y, x = field.vector_from_zeros
+        if x < 0 or x >= self._board_size:
+            return None
+        if y < 0 or y >= self._board_size:
+            return None
+        return x, y
 
     async def get_in_action(self) -> ActionEvent:
         return await self._in_queue.async_q.get()
@@ -109,12 +119,12 @@ class IO:
                     except ShipBiggerThanAllowedError as ex:
                         logger.debug(f"Ship bigger than allowed: {ex.ship}")
                         for field in ex.ship.fields:
-                            y, x = field.vector_from_zeros
-                            await self.put_out_action(
-                                ActionEvent(
-                                    OutActions.BlinkShips, (x, y), DisplayBoard.Ships
+                            if tile := self.get_valid_tile(field):
+                                await self.put_out_action(
+                                    ActionEvent(
+                                        OutActions.BlinkShips, tile, DisplayBoard.Ships
+                                    )
                                 )
-                            )
                         continue
                     except ShipCountNotConformingError as ex:
                         logger.debug(f"Wrong ship count: {ex.ships}")
@@ -130,14 +140,14 @@ class IO:
                             continue
                         for ship in ex.ships:
                             for field in ship.fields:
-                                y, x = field.vector_from_zeros
-                                await self.put_out_action(
-                                    ActionEvent(
-                                        OutActions.BlinkShips,
-                                        (x, y),
-                                        DisplayBoard.Ships,
+                                if tile := self.get_valid_tile(field):
+                                    await self.put_out_action(
+                                        ActionEvent(
+                                            OutActions.BlinkShips,
+                                            tile,
+                                            DisplayBoard.Ships,
+                                        )
                                     )
-                                )
                         continue
 
                     try:
@@ -145,12 +155,12 @@ class IO:
                     except LaunchedShipCollidesError as ex:
                         logger.debug(f"Colliding fields: {ex.colliding_fields}")
                         for field in ex.colliding_fields:
-                            y, x = field.vector_from_zeros
-                            await self.put_out_action(
-                                ActionEvent(
-                                    OutActions.BlinkShips, (x, y), DisplayBoard.Ships
+                            if tile := self.get_valid_tile(field):
+                                await self.put_out_action(
+                                    ActionEvent(
+                                        OutActions.BlinkShips, tile, DisplayBoard.Ships
+                                    )
                                 )
-                            )
                         masted_ships = None
                         continue
 
@@ -200,11 +210,23 @@ class IO:
             AttackResultStatus.ShotDown: OutActions.DestroyedShots,
         }[AttackResultStatus[result.status]]
 
-        y, x = result.field.vector_from_zeros
-        tile = (x, y)
-
-        await self.put_out_action(ActionEvent(action, tile, DisplayBoard.Shots))
-        # TODO get whole destroyed ship
+        if action == OutActions.DestroyedShots:
+            destroyed_fields = get_all_ship_fields(game.attacked_fields, result.field)
+            destroyed_ship = Ship(destroyed_fields)
+            for field in destroyed_ship.fields:
+                if tile := self.get_valid_tile(field):
+                    await self.put_out_action(
+                        ActionEvent(OutActions.DestroyedShots, tile, DisplayBoard.Shots)
+                    )
+            for field in destroyed_ship.coastal_zone:
+                if tile := self.get_valid_tile(field):
+                    await self.put_out_action(
+                        ActionEvent(
+                            OutActions.AroundDestroyedShots, tile, DisplayBoard.Shots
+                        )
+                    )
+        elif tile := self.get_valid_tile(result.field):
+            await self.put_out_action(ActionEvent(action, tile, DisplayBoard.Shots))
 
     async def opponent_attack_result(self, result: AttackResult, game: Game) -> None:
         action: OutActions = {
@@ -222,32 +244,25 @@ class IO:
                 destroyed_ship = ship
                 break
             for field in destroyed_ship.fields:
-                y, x = field.vector_from_zeros
-                tile = (x, y)
-                await self.put_out_action(
-                    ActionEvent(OutActions.DestroyedShips, tile, DisplayBoard.Ships)
-                )
-            for field in destroyed_ship.coastal_zone:
-                y, x = field.vector_from_zeros
-                tile = (x, y)
-                await self.put_out_action(
-                    ActionEvent(
-                        OutActions.AroundDestroyedShips, tile, DisplayBoard.Ships
+                if tile := self.get_valid_tile(field):
+                    await self.put_out_action(
+                        ActionEvent(OutActions.DestroyedShips, tile, DisplayBoard.Ships)
                     )
-                )
-        else:
-            y, x = result.field.vector_from_zeros
-            tile = (x, y)
-
+            for field in destroyed_ship.coastal_zone:
+                if tile := self.get_valid_tile(field):
+                    await self.put_out_action(
+                        ActionEvent(
+                            OutActions.AroundDestroyedShips, tile, DisplayBoard.Ships
+                        )
+                    )
+        elif tile := self.get_valid_tile(result.field):
             await self.put_out_action(ActionEvent(action, tile, DisplayBoard.Ships))
 
     async def opponent_possible_attack(self, possible_atack: PossibleAttack) -> None:
-        y, x = possible_atack.field.vector_from_zeros
-        tile = (x, y)
-
-        await self.put_out_action(
-            ActionEvent(OutActions.HoverShips, tile, DisplayBoard.Ships)
-        )
+        if tile := self.get_valid_tile(possible_atack.field):
+            await self.put_out_action(
+                ActionEvent(OutActions.HoverShips, tile, DisplayBoard.Ships)
+            )
 
     async def handle_messages(
         self, message: GameMessage, game: Game, result: Optional[GameMessage]
