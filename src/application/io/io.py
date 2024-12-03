@@ -25,8 +25,11 @@ from domain.attacks import (
     AttackResultStatus,
     PossibleAttack,
 )
+from domain.client.game import Game
 
 from config import CONFIG, get_logger
+
+from domain.ships import Ship
 
 logger = get_logger(__name__)
 
@@ -115,6 +118,16 @@ class IO:
                         continue
                     except ShipCountNotConformingError as ex:
                         logger.debug(f"Wrong ship count: {ex.ships}")
+                        if len(ex.ships) == 0:
+                            logger.debug("Blinking board border")
+                            await self.put_out_action(
+                                ActionEvent(
+                                    OutActions.BlinkShips,
+                                    None,
+                                    DisplayBoard.ShipsBorder,
+                                )
+                            )
+                            continue
                         for ship in ex.ships:
                             for field in ship.fields:
                                 y, x = field.vector_from_zeros
@@ -179,11 +192,11 @@ class IO:
 
         return ret
 
-    async def player_attack_result(self, result: AttackResult) -> None:
+    async def player_attack_result(self, result: AttackResult, game: Game) -> None:
         action: OutActions = {
             AttackResultStatus.Missed: OutActions.MissShots,
             AttackResultStatus.Shot: OutActions.HitShots,
-            AttackResultStatus.AlreadyShot: OutActions.HitShots,  # TODO inform player
+            AttackResultStatus.AlreadyShot: OutActions.HitShots,
             AttackResultStatus.ShotDown: OutActions.DestroyedShots,
         }[AttackResultStatus[result.status]]
 
@@ -191,19 +204,42 @@ class IO:
         tile = (x, y)
 
         await self.put_out_action(ActionEvent(action, tile, DisplayBoard.Shots))
+        # TODO get whole destroyed ship
 
-    async def opponent_attack_result(self, result: AttackResult) -> None:
+    async def opponent_attack_result(self, result: AttackResult, game: Game) -> None:
         action: OutActions = {
             AttackResultStatus.Missed: OutActions.MissShips,
             AttackResultStatus.Shot: OutActions.HitShips,
-            AttackResultStatus.AlreadyShot: OutActions.HitShips,  # TODO inform player
+            AttackResultStatus.AlreadyShot: OutActions.HitShips,
             AttackResultStatus.ShotDown: OutActions.DestroyedShips,
         }[AttackResultStatus[result.status]]
 
-        y, x = result.field.vector_from_zeros
-        tile = (x, y)
+        if action == OutActions.DestroyedShips:
+            destroyed_ship: Optional[Ship] = None
+            for ship in game.ships:
+                if not result.field in ship.fields:
+                    continue
+                destroyed_ship = ship
+                break
+            for field in destroyed_ship.fields:
+                y, x = field.vector_from_zeros
+                tile = (x, y)
+                await self.put_out_action(
+                    ActionEvent(OutActions.DestroyedShips, tile, DisplayBoard.Ships)
+                )
+            for field in destroyed_ship.coastal_zone:
+                y, x = field.vector_from_zeros
+                tile = (x, y)
+                await self.put_out_action(
+                    ActionEvent(
+                        OutActions.AroundDestroyedShips, tile, DisplayBoard.Ships
+                    )
+                )
+        else:
+            y, x = result.field.vector_from_zeros
+            tile = (x, y)
 
-        await self.put_out_action(ActionEvent(action, tile, DisplayBoard.Ships))
+            await self.put_out_action(ActionEvent(action, tile, DisplayBoard.Ships))
 
     async def opponent_possible_attack(self, possible_atack: PossibleAttack) -> None:
         y, x = possible_atack.field.vector_from_zeros
@@ -214,13 +250,13 @@ class IO:
         )
 
     async def handle_messages(
-        self, message: GameMessage, result: Optional[GameMessage]
+        self, message: GameMessage, game: Game, result: Optional[GameMessage]
     ) -> None:
         match message.data.type_:
             case AttackResult.type_:
-                await self.player_attack_result(message.data)
+                await self.player_attack_result(message.data, game)
             case AttackRequest.type_:
-                await self.opponent_attack_result(result.data)
+                await self.opponent_attack_result(result.data, game)
             case PossibleAttack.type_:
                 await self.opponent_possible_attack(message.data)
             case _:

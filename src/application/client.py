@@ -249,7 +249,7 @@ async def play():
                         my_turn_to_attack = True
 
                     if CONFIG.mode != "terminal":
-                        await game_io.handle_messages(message, result)
+                        await game_io.handle_messages(message, game, result)
 
             if current_game_info.status == GameStatus.Ended or game.all_ships_wrecked:
                 break
