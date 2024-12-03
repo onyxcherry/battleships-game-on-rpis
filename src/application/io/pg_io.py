@@ -282,6 +282,7 @@ class IO:
 
             case InfoActions.PlayerDisconnected:
                 self._show_player_board = False
+                self._ships_pg_board.set_mode(PgBoard.Mode.DISCONNECTED)
 
             case InfoActions.OpponentConnected:
                 self._show_opponent_board = True

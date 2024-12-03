@@ -313,6 +313,8 @@ async def play():
                 break
 
     inf_event.player_disconnected()
+    if CONFIG.mode != "terminal":
+        await game_io.player_disconnected()
 
 
 async def main():
