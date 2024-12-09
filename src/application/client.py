@@ -357,7 +357,8 @@ async def main():
             0.05 * 2**connect_attempt_count if connect_attempt_count <= 8 else 3.0
         )
         connect_attempt_count += 1
-        if waiting_seconds >= CLIENT_CONFIG.min_duration_to_show_animation_in_seconds:
+        if waiting_seconds >= CLIENT_CONFIG.min_duration_to_show_animation_in_seconds \
+            and CONFIG.mode != "terminal":
             await game_io.player_disconnected()
 
         cancel_running_user_tasks()

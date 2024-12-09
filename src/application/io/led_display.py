@@ -18,8 +18,7 @@ class ExtraColors(enum.StrEnum):
     MarkerAxis = "MarkerAxis"
 
     Water = "Water"
-    AroundDestroyed = "AroundDestroyed"
-
+    
 
 @dataclass(frozen=True)
 class LEDConfig:
@@ -37,8 +36,8 @@ class LEDConfig:
 
 LED_CONFIG: Final = LEDConfig(
     matrix_size=(16, 16),
-    shots_matrix_pin=18,
-    ships_matrix_pin=13,
+    shots_matrix_pin=13,
+    ships_matrix_pin=18,
     matrix_brightness=20,
     blink_duration_ms=500,
     color_map={
@@ -53,7 +52,8 @@ LED_CONFIG: Final = LEDConfig(
         OutActions.NoShip: Color(4, 15, 15),
         OutActions.Ship: Color(3, 163, 0),
         OutActions.BlinkShips: Color(127, 0, 0),
-        ExtraColors.AroundDestroyed: Color(76, 87, 245),
+        OutActions.AroundDestroyedShips: Color(76, 87, 245),
+        OutActions.AroundDestroyedShots: Color(76, 87, 245),
         ExtraColors.MarkerCenter: Color(255, 251, 0),
         ExtraColors.MarkerAxis: Color(255, 255, 255),
         ExtraColors.BoardBorderReady: Color(0, 0, 255),
@@ -76,9 +76,6 @@ class Display:
         self._shooting = False
         self._place_ships = False
 
-        self._show_player_board = False
-        self._show_opponent_board = False
-
         self._ships_marker_pos = (0, 0)
         self._shots_marker_pos = (-1, -1)
 
@@ -90,10 +87,12 @@ class Display:
         self._board_size = size
 
     def _init_boards(self) -> None:
+        self._ships_marker_pos = (0, 0)
         self._ships_led_board.set_size(self._board_size)
         self._shots_led_board.set_size(self._board_size)
 
         self._ships_led_board.set_mode(LED_Board.Mode.NORMAL)
+        self._shots_led_board.set_mode(LED_Board.Mode.WAIT_FOR_CONNECT)
 
     def _blink_event(self, event: ActionEvent) -> None:
         if not event.action in LED_CONFIG.color_map:
@@ -125,15 +124,12 @@ class Display:
 
         match event.action:
             case InfoActions.PlayerConnected:
-                self._show_player_board = True
                 self._init_boards()
 
             case InfoActions.PlayerDisconnected:
-                self._show_player_board = False
                 self._ships_led_board.set_mode(LED_Board.Mode.DISCONNECTED)
 
             case InfoActions.OpponentConnected:
-                self._show_opponent_board = True
                 self._shots_led_board.set_mode(LED_Board.Mode.NORMAL)
 
             case InfoActions.OpponentDisconnected:
@@ -241,6 +237,7 @@ class LED_Board:
         self.clear()
 
     def set_size(self, board_size: int) -> None:
+        self._player_ready = False
         self._size = board_size
         self._tiles: list[list[RGBW]] = [
             [LED_CONFIG.color_map[ExtraColors.Water] for x in range(self._size)]
@@ -249,7 +246,6 @@ class LED_Board:
         self._blinking_tiles: dict[LED_Board.BlinkingTile, int] = dict()
         self._blinking_border: Optional[tuple[RGBW, int]] = None
         self._off = (int((16 - self._size) // 2), int((16 - self._size) // 2))
-        self._draw_border()
         self.draw((-1, -1))
 
     def set_mode(self, mode: Mode) -> None:

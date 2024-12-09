@@ -406,6 +406,7 @@ class PgBoard:
         self._player_ready = False
 
     def set_size(self, board_size: int) -> None:
+        self._player_ready = False
         self._size = board_size
         self._tilesize = PG_CONFIG.board_display_size / self._size
 

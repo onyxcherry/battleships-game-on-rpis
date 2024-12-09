@@ -12,11 +12,10 @@ class Rpi_Input:
         self._stop_running = stop_running
         self._active = False
 
-        ## temp, will be replaced by joystick
-        self._up_button = gp.Button(8, bounce_time=0.05)
+        self._up_button = gp.Button(1, bounce_time=0.05)
         self._down_button = gp.Button(7, bounce_time=0.05)
         self._left_button = gp.Button(25, bounce_time=0.05)
-        self._right_button = gp.Button(1, bounce_time=0.05)
+        self._right_button = gp.Button(8, bounce_time=0.05)
 
         self._directions = {
             self._up_button: (0, -1),
@@ -24,10 +23,9 @@ class Rpi_Input:
             self._left_button: (-1, 0),
             self._right_button: (1, 0),
         }
-        ##
 
-        self._select_button = gp.Button(27, bounce_time=0.05)
-        self._confirm_button = gp.Button(22, bounce_time=0.05)
+        self._select_button = gp.Button(22, bounce_time=0.05)
+        self._confirm_button = gp.Button(27, bounce_time=0.05)
 
         self._marker_pos: Tuple[int, int] = (0, 0)
 
@@ -45,7 +43,6 @@ class Rpi_Input:
             max(0, min(self._board_size - 1, self._marker_pos[0] + direction[0])),
             max(0, min(self._board_size - 1, self._marker_pos[1] + direction[1])),
         )
-        # print(ActionEvent(InActions.Hover,self._marker_pos))
 
         self._input_queue.put(ActionEvent(InActions.Hover, self._marker_pos))
 
