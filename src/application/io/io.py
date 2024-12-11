@@ -73,6 +73,8 @@ class IO:
         return await self._in_queue.async_q.get()
 
     async def put_out_action(self, event: ActionEvent) -> None:
+        if CONFIG.mode == "terminal":
+            return
         await self._out_queue.async_q.put(event)
 
     async def get_masted_ships(self) -> Optional[MastedShips]:
@@ -169,6 +171,7 @@ class IO:
         except asyncio.CancelledError:
             pass
 
+        logger.debug(InfoActions.PlayerReady)
         await self.put_out_action(ActionEvent(OutActions.FinishedPlacing))
         return masted_ships
 
@@ -311,9 +314,11 @@ class IO:
             self._display.set_board_size(board_size)
             self._input.set_board_size(board_size)
 
+        logger.debug(InfoActions.PlayerConnected)
         await self.put_out_action(ActionEvent(InfoActions.PlayerConnected))
 
     async def player_disconnected(self) -> None:
+        logger.debug(InfoActions.PlayerDisconnected)
         await self.put_out_action(ActionEvent(InfoActions.PlayerDisconnected))
 
     async def react_to(self, game_info: GameInfo) -> None:
@@ -321,17 +326,22 @@ class IO:
             return
         if game_info.opponent.connected and not self._opponent_connected:
             self._opponent_connected = True
+            logger.debug(InfoActions.OpponentConnected)
             await self.put_out_action(ActionEvent(InfoActions.OpponentConnected))
         if self._opponent_connected and not game_info.opponent.connected:
             self._opponent_connected = False
+            logger.debug(InfoActions.OpponentDisconnected)
             await self.put_out_action(ActionEvent(InfoActions.OpponentDisconnected))
         if game_info.opponent.ready and not self._opponent_ready:
+            logger.debug(InfoActions.OpponentReady)
             await self.put_out_action(ActionEvent(InfoActions.OpponentReady))
 
     async def won(self, who: Literal["Player", "Opponent"]) -> None:
         if who == "Player":
+            logger.debug(InfoActions.PlayerWon)
             await self.put_out_action(ActionEvent(InfoActions.PlayerWon))
         elif who == "Opponent":
+            logger.debug(InfoActions.OpponentWon)
             await self.put_out_action(ActionEvent(InfoActions.OpponentWon))
 
     def stop(self) -> None:

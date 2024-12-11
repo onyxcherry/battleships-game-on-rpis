@@ -1,8 +1,7 @@
 import enum
-from application.messaging import GameInfo
 from config import get_logger
 from pydantic.dataclasses import dataclass
-from typing import Final, Literal, Optional
+from typing import Final, Optional
 from domain.field import Field
 
 logger: Final = get_logger(__name__)
@@ -78,42 +77,3 @@ class ActionEvent:
         if self.tile is None:
             return None
         return Field.fromTuple(self.tile)
-
-
-class EventInforming:
-    def __init__(self) -> None:
-        self._opponent_connected: Optional[bool] = None
-        self._opponent_connected_shown: bool = False
-        self._opponent_ready_shown: bool = False
-
-    def react_to(self, game_info: GameInfo) -> None:
-        if game_info.opponent is None:
-            self._opponent_connected = False
-            return
-        if self._opponent_connected is None:
-            self._opponent_connected = game_info.opponent.connected
-        if self._opponent_connected and not game_info.opponent.connected:
-            logger.debug(InfoActions.OpponentDisconnected)
-        if game_info.opponent.connected and not self._opponent_connected_shown:
-            logger.debug(InfoActions.OpponentConnected)
-            self._opponent_connected_shown = True
-        if game_info.opponent.ready and not self._opponent_ready_shown:
-            logger.debug(InfoActions.OpponentReady)
-            self._opponent_ready_shown = True
-
-    def player_connected(self) -> None:
-        logger.debug(InfoActions.PlayerConnected)
-
-    def player_ready(self) -> None:
-        logger.debug(InfoActions.PlayerReady)
-
-    def player_disconnected(self) -> None:
-        logger.debug(InfoActions.PlayerDisconnected)
-
-    def won(self, who: Literal["Player", "Opponent"]) -> None:
-        if who == "Player":
-            logger.debug(InfoActions.PlayerWon)
-        elif who == "Opponent":
-            logger.debug(InfoActions.OpponentWon)
-        else:
-            raise ValueError(f"Invalid side won: {who}")

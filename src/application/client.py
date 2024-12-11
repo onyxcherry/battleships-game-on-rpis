@@ -4,7 +4,6 @@ import asyncio
 import pprint
 import sys
 from uuid import uuid4
-from application.io.actions import EventInforming
 from application.messaging import (
     ClientInfo,
     GameInfo,
@@ -133,8 +132,7 @@ def cancel_running_user_tasks() -> None:
 
 
 def stop_all():
-    if CONFIG.mode != "terminal":
-        game_io.stop()
+    game_io.stop()
 
 
 async def play():
@@ -152,7 +150,6 @@ async def play():
     current_game_info: Optional[GameInfo] = None
 
     placed_ships_info_sent: bool = False
-    inf_event = EventInforming()
 
     server_address = f"ws://{CONFIG.server_host}:{CONFIG.server_port}"
     logger.info(f"Will try to connect to {server_address}")
@@ -165,19 +162,17 @@ async def play():
 
         data = await receive(ws)
         current_game_info = parse_game_info(data)
-        inf_event.react_to(current_game_info)
 
         game = Game(
             masted_ships=current_game_info.masted_ships,
             board_size=current_game_info.board_size,
         )
 
-        if CONFIG.mode != "terminal":
-            await game_io.player_connected(
-                masted_ships=current_game_info.masted_ships,
-                board_size=current_game_info.board_size,
-            )
-            await game_io.react_to(current_game_info)
+        await game_io.player_connected(
+            masted_ships=current_game_info.masted_ships,
+            board_size=current_game_info.board_size,
+        )
+        await game_io.react_to(current_game_info)
 
         placing_ships_task = asyncio.create_task(place_ships(game))
 
@@ -189,9 +184,7 @@ async def play():
                 pass
             else:
                 current_game_info = parse_game_info(data)
-                inf_event.react_to(current_game_info)
-                if CONFIG.mode != "terminal":
-                    await game_io.react_to(current_game_info)
+                await game_io.react_to(current_game_info)
 
             if placing_ships_task.done() and not placed_ships_info_sent:
                 client_info = ClientInfo(
@@ -203,7 +196,6 @@ async def play():
                 )
                 await send(ws, client_info)
                 placed_ships_info_sent = True
-                inf_event.player_ready()
 
             if (
                 current_game_info is not None
@@ -269,8 +261,7 @@ async def play():
                         await send(ws, result)
                         my_turn_to_attack = True
 
-                    if CONFIG.mode != "terminal":
-                        await game_io.handle_messages(message, game, result)
+                    await game_io.handle_messages(message, game, result)
 
             if current_game_info.status == GameStatus.Ended or game.all_ships_wrecked:
                 break
@@ -293,9 +284,7 @@ async def play():
                 pass
             else:
                 current_game_info = parse_game_info(data)
-                inf_event.react_to(current_game_info)
-                if CONFIG.mode != "terminal":
-                    await game_io.react_to(current_game_info)
+                await game_io.react_to(current_game_info)
 
             if current_game_info.status == GameStatus.Ended:
                 logger.info("Game was ended")
@@ -305,16 +294,12 @@ async def play():
                     who_won = (
                         "Player" if current_game_info.extra.you_won else "Opponent"
                     )
-                    inf_event.won(who_won)
-                    if CONFIG.mode != "terminal":
-                        await game_io.won(who_won)
+                    await game_io.won(who_won)
                 await asyncio.sleep(CLIENT_CONFIG.game_ended_state_show_seconds)
                 await ws.close()
                 break
 
-    inf_event.player_disconnected()
-    if CONFIG.mode != "terminal":
-        await game_io.player_disconnected()
+    await game_io.player_disconnected()
 
 
 async def main():
@@ -357,8 +342,7 @@ async def main():
             0.05 * 2**connect_attempt_count if connect_attempt_count <= 8 else 3.0
         )
         connect_attempt_count += 1
-        if waiting_seconds >= CLIENT_CONFIG.min_duration_to_show_animation_in_seconds \
-            and CONFIG.mode != "terminal":
+        if waiting_seconds >= CLIENT_CONFIG.min_duration_to_show_animation_in_seconds:
             await game_io.player_disconnected()
 
         cancel_running_user_tasks()
