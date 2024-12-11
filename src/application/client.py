@@ -2,6 +2,7 @@
 
 import asyncio
 import pprint
+import socket
 import sys
 from uuid import uuid4
 from application.messaging import (
@@ -155,7 +156,10 @@ async def play():
     logger.info(f"Will try to connect to {server_address}")
 
     async with connect(
-        server_address, ping_interval=None, ping_timeout=ping_timeout
+        server_address,
+        ping_interval=None,
+        ping_timeout=ping_timeout,
+        family=socket.AF_INET,
     ) as ws:
         await send(ws, starting_client_info)
         connect_attempt_count = 0
