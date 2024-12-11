@@ -142,7 +142,7 @@ class IO:
         elif event.board == DisplayBoard.ShipsBorder:
             self._ships_pg_board.blink_border(color)
         elif event.board == DisplayBoard.ShotsBorder:
-            self._ships_pg_board.blink_border(color)
+            self._shots_pg_board.blink_border(color)
 
     def _color_event(self, event: ActionEvent) -> None:
         if not event.action in PG_CONFIG.color_map:
@@ -406,6 +406,7 @@ class PgBoard:
         self._player_ready = False
 
     def set_size(self, board_size: int) -> None:
+        self._player_ready = False
         self._size = board_size
         self._tilesize = PG_CONFIG.board_display_size / self._size
 
