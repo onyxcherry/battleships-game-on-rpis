@@ -10,7 +10,8 @@ class LED_Matrix(ws.PixelStrip):
         pin: int,  # GPIO pin connected to the pixels (must be PWM!)
         freq_hz: int = 800000,  # LED signal frequency in hertz (usually 800khz)
         dma: int = 10,  # DMA channel to use for generating a signal (try 10)
-        invert: bool = False,  # True to invert the signal (when using NPN transistor level shift)
+        invert: bool = False,
+        # True to invert the signal (when using NPN transistor level shift)
         brightness: int = 255,  # 0 - dark, 255 - full brightness
         channel: int = 0,  # set to '1' for GPIOs 13, 19, 41, 45 or 53
         strip_type=None,  # set unusal LED strip type

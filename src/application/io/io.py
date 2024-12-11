@@ -242,7 +242,7 @@ class IO:
         if action == OutActions.DestroyedShips:
             destroyed_ship: Optional[Ship] = None
             for ship in game.ships:
-                if not result.field in ship.fields:
+                if result.field not in ship.fields:
                     continue
                 destroyed_ship = ship
                 break

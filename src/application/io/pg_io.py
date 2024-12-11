@@ -131,7 +131,7 @@ class IO:
             print("out queue full!")
 
     def _blink_event(self, event: ActionEvent) -> None:
-        if not event.action in PG_CONFIG.color_map:
+        if event.action not in PG_CONFIG.color_map:
             return
 
         color = PG_CONFIG.color_map[event.action]
@@ -145,7 +145,7 @@ class IO:
             self._shots_pg_board.blink_border(color)
 
     def _color_event(self, event: ActionEvent) -> None:
-        if not event.action in PG_CONFIG.color_map:
+        if event.action not in PG_CONFIG.color_map:
             return
 
         color = PG_CONFIG.color_map[event.action]

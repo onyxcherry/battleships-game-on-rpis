@@ -18,7 +18,7 @@ class ExtraColors(enum.StrEnum):
     MarkerAxis = "MarkerAxis"
 
     Water = "Water"
-    
+
 
 @dataclass(frozen=True)
 class LEDConfig:
@@ -95,7 +95,7 @@ class Display:
         self._shots_led_board.set_mode(LED_Board.Mode.WAIT_FOR_CONNECT)
 
     def _blink_event(self, event: ActionEvent) -> None:
-        if not event.action in LED_CONFIG.color_map:
+        if event.action not in LED_CONFIG.color_map:
             return
 
         color = LED_CONFIG.color_map[event.action]
@@ -110,7 +110,7 @@ class Display:
             self._shots_led_board.blink_border(color)
 
     def _color_event(self, event: ActionEvent) -> None:
-        if not event.action in LED_CONFIG.color_map:
+        if event.action not in LED_CONFIG.color_map:
             return
 
         color = LED_CONFIG.color_map[event.action]

@@ -50,7 +50,7 @@ class Game:
     @property
     def ships(self) -> list[Ship]:
         return self._ships_board.ships
-    
+
     @property
     def attacked_fields(self) -> set[Field]:
         return self._attacks_board.attacked_fields
