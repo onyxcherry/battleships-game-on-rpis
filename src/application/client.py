@@ -362,7 +362,12 @@ async def main():
             await game_io.player_disconnected()
 
         cancel_running_user_tasks()
-        await asyncio.sleep(waiting_seconds)
+        try:
+            await asyncio.sleep(waiting_seconds)
+        except asyncio.CancelledError:
+            logger.info("Playing (specifically sleeping) cancelled, exiting...")
+            stop_all()
+            return
 
 
 if __name__ == "__main__":
