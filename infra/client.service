@@ -1,0 +1,15 @@
+[Unit]
+Description=Client service for battleships client
+
+[Service]
+Type=simple
+User=root
+Environment=PYTHONPATH=/battleships-game-on-rpis/src/
+ExecStart=/battleships-game-on-rpis/venv/bin/python /battleships-game-on-rpis/src/application/client.py
+Restart=on-failure
+StandardOutput=file:/battleships-game-on-rpis/client-logs
+StandardError=file:/battleships-game-on-rpis/client-error-logs
+TimeoutStopSec=5
+
+[Install]
+WantedBy=default.target
