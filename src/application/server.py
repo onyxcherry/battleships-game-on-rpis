@@ -4,6 +4,7 @@ import asyncio
 import dataclasses
 import json
 import pprint
+import socket
 from typing import Final, Literal, Optional
 from uuid import uuid4
 from application.messaging import (
@@ -275,6 +276,7 @@ async def main():
         CONFIG.server_port,
         ping_interval=None,
         ping_timeout=ping_timeout,
+        family=socket.AF_INET,
     ):
         logger.info(f"Server started at {CONFIG.server_host}:{CONFIG.server_port}")
         await asyncio.get_running_loop().create_future()
