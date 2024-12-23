@@ -157,8 +157,10 @@ async def play():
 
     async with connect(
         server_address,
-        ping_interval=None,
-        ping_timeout=ping_timeout,
+        open_timeout=5,
+        ping_interval=CONFIG.conn_ping_interval,
+        ping_timeout=CONFIG.conn_ping_timeout,
+        close_timeout=5,
         family=socket.AF_INET,
     ) as ws:
         await send(ws, starting_client_info)

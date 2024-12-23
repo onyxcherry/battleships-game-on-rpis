@@ -48,6 +48,8 @@ class Config:
     logging_level: Literal["DEBUG", "INFO", "WARNING"]
     masted_ships_counts = MastedShipsCounts(single=1, two=1, three=1, four=0)
     board_size = 10
+    conn_ping_interval = 20
+    conn_ping_timeout = 5
 
 
 @dataclass(frozen=True)
