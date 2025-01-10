@@ -274,8 +274,10 @@ async def main():
         listen,
         CONFIG.server_host,
         CONFIG.server_port,
-        ping_interval=None,
-        ping_timeout=ping_timeout,
+        open_timeout=5,
+        ping_interval=CONFIG.conn_ping_interval,
+        ping_timeout=CONFIG.conn_ping_timeout,
+        close_timeout=5,
         family=socket.AF_INET,
     ):
         logger.info(f"Server started at {CONFIG.server_host}:{CONFIG.server_port}")

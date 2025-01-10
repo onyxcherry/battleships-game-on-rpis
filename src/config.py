@@ -48,6 +48,8 @@ class Config:
     logging_level: Literal["DEBUG", "INFO", "WARNING"]
     masted_ships_counts = MastedShipsCounts(single=1, two=1, three=1, four=0)
     board_size = 10
+    conn_ping_interval = 20
+    conn_ping_timeout = 5
 
 
 @dataclass(frozen=True)
@@ -57,7 +59,7 @@ class ClientConfig:
 
 
 CONFIG: Final = Config(
-    server_host="localhost", server_port=4200, mode="pygame", logging_level="DEBUG"
+    server_host="10.42.0.1", server_port=4200, mode="rgbled", logging_level="INFO"
 )
 
 CLIENT_CONFIG: Final = ClientConfig(
