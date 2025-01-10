@@ -59,7 +59,7 @@ class ClientConfig:
 
 
 CONFIG: Final = Config(
-    server_host="localhost", server_port=4200, mode="pygame", logging_level="DEBUG"
+    server_host="10.42.0.1", server_port=4200, mode="rgbled", logging_level="INFO"
 )
 
 CLIENT_CONFIG: Final = ClientConfig(
