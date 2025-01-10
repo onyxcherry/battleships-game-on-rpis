@@ -69,7 +69,15 @@ Battleship game played on Raspberry Pi Zero 2W and LED RGB matrices
     nmcli -f NAME,UUID,AUTOCONNECT,AUTOCONNECT-PRIORITY c
     ```
 
+### Connect to the AP
+
 Now, you should be able to connect to hostname _battleships_ via WiFi with the provided password.
+
+Run
+
+```shell
+sudo nmcli device wifi connect battleships password veryveryhardpassword1234
+```
 
 ### Server unit service file
 
