@@ -12,10 +12,10 @@ class Rpi_Input:
         self._stop_running = stop_running
         self._active = False
 
-        self._up_button = gp.Button(1, bounce_time=0.05)
+        self._up_button = gp.Button(8, bounce_time=0.05)
         self._down_button = gp.Button(7, bounce_time=0.05)
         self._left_button = gp.Button(25, bounce_time=0.05)
-        self._right_button = gp.Button(8, bounce_time=0.05)
+        self._right_button = gp.Button(1, bounce_time=0.05)
 
         self._directions = {
             self._up_button: (0, -1),
