@@ -46,7 +46,7 @@ class Config:
     server_port: int
     mode: Literal["terminal", "pygame", "rgbled"]
     logging_level: Literal["DEBUG", "INFO", "WARNING"]
-    masted_ships_counts = MastedShipsCounts(single=1, two=1, three=1, four=0)
+    masted_ships_counts = MastedShipsCounts(single=4, two=3, three=2, four=1)
     board_size = 10
     conn_ping_interval = 20
     conn_ping_timeout = 5
