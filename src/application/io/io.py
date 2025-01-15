@@ -214,7 +214,9 @@ class IO:
         }[AttackResultStatus[result.status]]
 
         if action == OutActions.DestroyedShots:
-            destroyed_fields = get_all_ship_fields(game.attacked_fields, result.field)
+            destroyed_fields = get_all_ship_fields(
+                game.attacked_fields, result.field, game.ships
+            )
             destroyed_ship = Ship(destroyed_fields)
             for field in destroyed_ship.fields:
                 if tile := self.get_valid_tile(field):
