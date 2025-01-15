@@ -55,6 +55,10 @@ class Game:
     def attacked_fields(self) -> set[Field]:
         return self._attacks_board.attacked_fields
 
+    @property
+    def shot_fields(self) -> list[Field]:
+        return self._attacks_board.shot_fields()
+
     def attack(self, field: Field) -> GameMessage:
         self._attacks_board.add_attack(field, "Unknown")
         attack_request = AttackRequest(field=field)

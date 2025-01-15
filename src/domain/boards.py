@@ -137,11 +137,10 @@ class ShipsBoard:
 
 
 def get_all_ship_fields(
-    all_attacked_fields: set[Field], starting: Field, ships: list[Ship]
+    all_attacked_fields: set[Field], starting: Field, ships_fields: list[Field]
 ) -> set[Field]:
     adjacency_vectors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     reconstructed_ship_fields: set[Field] = {starting}
-    all_ships_fields = [field for ship in ships for field in ship.fields]
     examined_fields = set()
 
     # queue of Fields to get their neighbours
@@ -155,10 +154,7 @@ def get_all_ship_fields(
         )
         examined_fields.add(fields_queue[0])
         for adjacent_field in fields_to_visit:
-            if (
-                adjacent_field in all_attacked_fields
-                and adjacent_field in all_ships_fields
-            ):
+            if adjacent_field in all_attacked_fields and adjacent_field in ships_fields:
                 reconstructed_ship_fields.add(adjacent_field)
                 fields_queue.append(adjacent_field)
         fields_queue.remove(fields_queue[0])
@@ -175,8 +171,9 @@ class ShotsBoard:
     ) -> None:
         self._attacks[field] = result
         if result == AttackResultStatus.ShotDown:
+            all_shot_fields = self.shot_fields()
             shot_down_ship_fields = get_all_ship_fields(
-                set(self._attacks.keys()), field
+                set(self._attacks.keys()), field, all_shot_fields
             )
             shot_down_ship = Ship.from_parts(
                 wrecked=shot_down_ship_fields, waving=set()
@@ -191,6 +188,18 @@ class ShotsBoard:
     @property
     def attacked_fields(self) -> set[Field]:
         return set(self._attacks.keys())
+
+    def shot_fields(self) -> list[Field]:
+        return [
+            field
+            for (field, status) in self._attacks.items()
+            if status
+            in [
+                AttackResultStatus.Shot,
+                AttackResultStatus.ShotDown,
+                AttackResultStatus.AlreadyShot,
+            ]
+        ]
 
     def represent_graphically(self, size: int) -> str:
         floating_fields = set()
