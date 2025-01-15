@@ -136,25 +136,33 @@ class ShipsBoard:
         return ships
 
 
-def get_all_ship_fields(all_fields: set[Field], starting: Field) -> set[Field]:
+def get_all_ship_fields(
+    all_attacked_fields: set[Field], starting: Field, ships: list[Ship]
+) -> set[Field]:
     adjacency_vectors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-    ship_fields: set[Field] = {starting}
+    reconstructed_ship_fields: set[Field] = {starting}
+    all_ships_fields = [field for ship in ships for field in ship.fields]
+    examined_fields = set()
 
     # queue of Fields to get their neighbours
     fields_queue: list[Field] = [starting]
     while len(fields_queue) > 0:
         fields_to_visit = list(
             filter(
-                lambda field: field is not None,
+                lambda field: field is not None and field not in examined_fields,
                 [fields_queue[0].moved_by(*vector) for vector in adjacency_vectors],
             )
         )
+        examined_fields.add(fields_queue[0])
         for adjacent_field in fields_to_visit:
-            if adjacent_field in all_fields and adjacent_field not in ship_fields:
-                ship_fields.add(adjacent_field)
+            if (
+                adjacent_field in all_attacked_fields
+                and adjacent_field in all_ships_fields
+            ):
+                reconstructed_ship_fields.add(adjacent_field)
                 fields_queue.append(adjacent_field)
         fields_queue.remove(fields_queue[0])
-    return ship_fields
+    return reconstructed_ship_fields
 
 
 class ShotsBoard:
