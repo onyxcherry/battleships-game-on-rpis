@@ -22,8 +22,7 @@ def tests_merging_fields_into_ships():
 
 
 def test_getting_all_ship_fields_when_one_given():
-    ship_fields = {Field("E5"), Field("F5"), Field("G5"), Field("G6")}
-    ships = ShipsBoard.build_ships_from_fields(ship_fields)
+    ships_fields = {Field("E5"), Field("F5"), Field("G5"), Field("G6")}
 
     attacked_fields = {
         Field("A3"),
@@ -36,4 +35,7 @@ def test_getting_all_ship_fields_when_one_given():
         Field("D9"),
         Field("D10"),
     }
-    assert get_all_ship_fields(attacked_fields, Field("G5"), list(ships)) == ship_fields
+    assert (
+        get_all_ship_fields(attacked_fields, Field("G5"), list(ships_fields))
+        == ships_fields
+    )

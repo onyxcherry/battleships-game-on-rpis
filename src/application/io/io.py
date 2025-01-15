@@ -215,7 +215,7 @@ class IO:
 
         if action == OutActions.DestroyedShots:
             destroyed_fields = get_all_ship_fields(
-                game.attacked_fields, result.field, game.ships
+                game.attacked_fields, result.field, game.shot_fields
             )
             destroyed_ship = Ship(destroyed_fields)
             for field in destroyed_ship.fields:
