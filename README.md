@@ -2,6 +2,8 @@
 
 Battleship game played on Raspberry Pi Zero 2W and LED RGB matrices
 
+![Picture shows LED matrices during game controlled by the user](demo.webp)
+
 ## Setup
 
 ### Requirements
